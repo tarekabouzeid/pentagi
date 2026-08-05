@@ -5,6 +5,7 @@ import (
 
 	"pentagi/pkg/database"
 	"pentagi/pkg/database/converter"
+	"pentagi/pkg/graph/model"
 	"pentagi/pkg/providers/pconfig"
 )
 
@@ -142,4 +143,12 @@ func (p *flowPublisher) FlowTemplateUpdated(ctx context.Context, template databa
 
 func (p *flowPublisher) FlowTemplateDeleted(ctx context.Context, template database.FlowTemplate) {
 	p.ctrl.flowTemplateDeleted.Publish(ctx, p.userID, converter.ConvertFlowTemplate(template))
+}
+
+func (p *flowPublisher) ToolApprovalRequested(ctx context.Context, approval *model.ToolApproval) {
+	p.ctrl.toolApprovalRequested.Publish(ctx, p.flowID, approval)
+}
+
+func (p *flowPublisher) ToolApprovalUpdated(ctx context.Context, approval *model.ToolApproval) {
+	p.ctrl.toolApprovalUpdated.Publish(ctx, p.flowID, approval)
 }

@@ -187,6 +187,12 @@ export type AgentsPrompts = {
     toolCallFixer: AgentPrompts;
 };
 
+export enum ApprovalDecision {
+    Approved = 'approved',
+    Denied = 'denied',
+    Edited = 'edited',
+}
+
 export type Assistant = {
     createdAt: Scalars['Time']['output'];
     flowId: Scalars['ID']['output'];
@@ -314,6 +320,12 @@ export type FunctionToolcallsStats = {
     totalDurationSeconds: Scalars['Float']['output'];
 };
 
+export enum HitlMode {
+    PerTool = 'per_tool',
+    PolicyOnly = 'policy_only',
+    RiskClassified = 'risk_classified',
+}
+
 export type MessageLog = {
     createdAt: Scalars['Time']['output'];
     flowId: Scalars['ID']['output'];
@@ -378,6 +390,7 @@ export type Mutation = {
     createFlowTemplate: FlowTemplate;
     createPrompt: UserPrompt;
     createProvider: ProviderConfig;
+    decideToolApproval: ToolApproval;
     deleteAPIToken: Scalars['Boolean']['output'];
     deleteAssistant: ResultType;
     deleteFavoriteFlow: ResultType;
@@ -386,8 +399,11 @@ export type Mutation = {
     deletePrompt: ResultType;
     deleteProvider: ResultType;
     finishFlow: ResultType;
+    injectCommand: ResultType;
+    pauseFlow: ResultType;
     putUserInput: ResultType;
     renameFlow: ResultType;
+    resumeFlow: ResultType;
     stopAssistant: Assistant;
     stopFlow: ResultType;
     testAgent: AgentTestResult;
@@ -441,6 +457,13 @@ export type MutationCreateProviderArgs = {
     type: ProviderType;
 };
 
+export type MutationDecideToolApprovalArgs = {
+    approvalId: Scalars['ID']['input'];
+    decision: ApprovalDecision;
+    editedArgs?: InputMaybe<Scalars['String']['input']>;
+    reason?: InputMaybe<Scalars['String']['input']>;
+};
+
 export type MutationDeleteApiTokenArgs = {
     tokenId: Scalars['String']['input'];
 };
@@ -474,6 +497,15 @@ export type MutationFinishFlowArgs = {
     flowId: Scalars['ID']['input'];
 };
 
+export type MutationInjectCommandArgs = {
+    command: Scalars['String']['input'];
+    flowId: Scalars['ID']['input'];
+};
+
+export type MutationPauseFlowArgs = {
+    flowId: Scalars['ID']['input'];
+};
+
 export type MutationPutUserInputArgs = {
     flowId: Scalars['ID']['input'];
     input: Scalars['String']['input'];
@@ -483,6 +515,10 @@ export type MutationPutUserInputArgs = {
 export type MutationRenameFlowArgs = {
     flowId: Scalars['ID']['input'];
     title: Scalars['String']['input'];
+};
+
+export type MutationResumeFlowArgs = {
+    flowId: Scalars['ID']['input'];
 };
 
 export type MutationStopAssistantArgs = {
@@ -691,6 +727,7 @@ export type Query = {
     flowsStatsByPeriod: Array<DailyFlowsStats>;
     flowsStatsTotal: FlowsStats;
     messageLogs?: Maybe<Array<MessageLog>>;
+    pendingToolApprovals: Array<ToolApproval>;
     providers: Array<Provider>;
     screenshots?: Maybe<Array<Screenshot>>;
     searchLogs?: Maybe<Array<SearchLog>>;
@@ -700,6 +737,7 @@ export type Query = {
     settingsUser: UserPreferences;
     tasks?: Maybe<Array<Task>>;
     terminalLogs?: Maybe<Array<TerminalLog>>;
+    toolApprovals: Array<ToolApproval>;
     toolcallsStatsByFlow: ToolcallsStats;
     toolcallsStatsByFunction: Array<FunctionToolcallsStats>;
     toolcallsStatsByFunctionForFlow: Array<FunctionToolcallsStats>;
@@ -756,6 +794,10 @@ export type QueryMessageLogsArgs = {
     flowId: Scalars['ID']['input'];
 };
 
+export type QueryPendingToolApprovalsArgs = {
+    flowId: Scalars['ID']['input'];
+};
+
 export type QueryScreenshotsArgs = {
     flowId: Scalars['ID']['input'];
 };
@@ -769,6 +811,10 @@ export type QueryTasksArgs = {
 };
 
 export type QueryTerminalLogsArgs = {
+    flowId: Scalars['ID']['input'];
+};
+
+export type QueryToolApprovalsArgs = {
     flowId: Scalars['ID']['input'];
 };
 
@@ -825,6 +871,13 @@ export enum ResultFormat {
 export enum ResultType {
     Error = 'error',
     Success = 'success',
+}
+
+export enum RiskClass {
+    Blocked = 'blocked',
+    High = 'high',
+    Low = 'low',
+    Medium = 'medium',
 }
 
 export type Screenshot = {
@@ -892,6 +945,8 @@ export type Subscription = {
     taskCreated: Task;
     taskUpdated: Task;
     terminalLogAdded: TerminalLog;
+    toolApprovalRequested: ToolApproval;
+    toolApprovalUpdated: ToolApproval;
     vectorStoreLogAdded: VectorStoreLog;
 };
 
@@ -944,6 +999,14 @@ export type SubscriptionTaskUpdatedArgs = {
 };
 
 export type SubscriptionTerminalLogAddedArgs = {
+    flowId: Scalars['ID']['input'];
+};
+
+export type SubscriptionToolApprovalRequestedArgs = {
+    flowId: Scalars['ID']['input'];
+};
+
+export type SubscriptionToolApprovalUpdatedArgs = {
     flowId: Scalars['ID']['input'];
 };
 
@@ -1035,6 +1098,21 @@ export enum TokenStatus {
     Expired = 'expired',
     Revoked = 'revoked',
 }
+
+export type ToolApproval = {
+    args: Scalars['String']['output'];
+    decidedAt?: Maybe<Scalars['Time']['output']>;
+    decision: Scalars['String']['output'];
+    editedArgs?: Maybe<Scalars['String']['output']>;
+    flowId: Scalars['ID']['output'];
+    id: Scalars['ID']['output'];
+    reason?: Maybe<Scalars['String']['output']>;
+    requestedAt: Scalars['Time']['output'];
+    riskClass: RiskClass;
+    taskId?: Maybe<Scalars['ID']['output']>;
+    toolCallId: Scalars['String']['output'];
+    toolName: Scalars['String']['output'];
+};
 
 export type ToolcallsStats = {
     totalCount: Scalars['Int']['output'];
@@ -1452,6 +1530,21 @@ export type FlowExecutionStatsFragmentFragment = {
     totalToolcallsCount: number;
     totalAssistantsCount: number;
     tasks: Array<TaskExecutionStatsFragmentFragment>;
+};
+
+export type ToolApprovalFragmentFragment = {
+    id: string;
+    flowId: string;
+    taskId?: string | null;
+    toolCallId: string;
+    toolName: string;
+    args: string;
+    riskClass: RiskClass;
+    decision: string;
+    editedArgs?: string | null;
+    reason?: string | null;
+    requestedAt: any;
+    decidedAt?: any | null;
 };
 
 export type FlowsQueryVariables = Exact<{ [key: string]: never }>;
@@ -2037,6 +2130,39 @@ export type FlowTemplateDeletedSubscriptionVariables = Exact<{ [key: string]: ne
 
 export type FlowTemplateDeletedSubscription = { flowTemplateDeleted: FlowTemplateFragmentFragment };
 
+export type ToolApprovalsQueryVariables = Exact<{
+    flowId: Scalars['ID']['input'];
+}>;
+
+export type ToolApprovalsQuery = { toolApprovals: Array<ToolApprovalFragmentFragment> };
+
+export type PendingToolApprovalsQueryVariables = Exact<{
+    flowId: Scalars['ID']['input'];
+}>;
+
+export type PendingToolApprovalsQuery = { pendingToolApprovals: Array<ToolApprovalFragmentFragment> };
+
+export type DecideToolApprovalMutationVariables = Exact<{
+    approvalId: Scalars['ID']['input'];
+    decision: ApprovalDecision;
+    editedArgs?: InputMaybe<Scalars['String']['input']>;
+    reason?: InputMaybe<Scalars['String']['input']>;
+}>;
+
+export type DecideToolApprovalMutation = { decideToolApproval: ToolApprovalFragmentFragment };
+
+export type ToolApprovalRequestedSubscriptionVariables = Exact<{
+    flowId: Scalars['ID']['input'];
+}>;
+
+export type ToolApprovalRequestedSubscription = { toolApprovalRequested: ToolApprovalFragmentFragment };
+
+export type ToolApprovalUpdatedSubscriptionVariables = Exact<{
+    flowId: Scalars['ID']['input'];
+}>;
+
+export type ToolApprovalUpdatedSubscription = { toolApprovalUpdated: ToolApprovalFragmentFragment };
+
 export const SettingsFragmentFragmentDoc = gql`
     fragment settingsFragment on Settings {
         debug
@@ -2558,6 +2684,22 @@ export const FlowExecutionStatsFragmentFragmentDoc = gql`
         }
     }
     ${TaskExecutionStatsFragmentFragmentDoc}
+`;
+export const ToolApprovalFragmentFragmentDoc = gql`
+    fragment toolApprovalFragment on ToolApproval {
+        id
+        flowId
+        taskId
+        toolCallId
+        toolName
+        args
+        riskClass
+        decision
+        editedArgs
+        reason
+        requestedAt
+        decidedAt
+    }
 `;
 export const UserPreferencesFragmentFragmentDoc = gql`
     fragment userPreferencesFragment on UserPreferences {
@@ -6849,3 +6991,257 @@ export function useFlowTemplateDeletedSubscription(
 }
 export type FlowTemplateDeletedSubscriptionHookResult = ReturnType<typeof useFlowTemplateDeletedSubscription>;
 export type FlowTemplateDeletedSubscriptionResult = Apollo.SubscriptionResult<FlowTemplateDeletedSubscription>;
+export const ToolApprovalsDocument = gql`
+    query toolApprovals($flowId: ID!) {
+        toolApprovals(flowId: $flowId) {
+            ...toolApprovalFragment
+        }
+    }
+    ${ToolApprovalFragmentFragmentDoc}
+`;
+
+/**
+ * __useToolApprovalsQuery__
+ *
+ * To run a query within a React component, call `useToolApprovalsQuery` and pass it any options that fit your needs.
+ * When your component renders, `useToolApprovalsQuery` returns an object from Apollo Client that contains loading, error, and data properties
+ * you can use to render your UI.
+ *
+ * @param baseOptions options that will be passed into the query, supported options are listed on: https://www.apollographql.com/docs/react/api/react-hooks/#options;
+ *
+ * @example
+ * const { data, loading, error } = useToolApprovalsQuery({
+ *   variables: {
+ *      flowId: // value for 'flowId'
+ *   },
+ * });
+ */
+export function useToolApprovalsQuery(
+    baseOptions: Apollo.QueryHookOptions<ToolApprovalsQuery, ToolApprovalsQueryVariables> &
+        ({ variables: ToolApprovalsQueryVariables; skip?: boolean } | { skip: boolean }),
+) {
+    const options = { ...defaultOptions, ...baseOptions };
+    return Apollo.useQuery<ToolApprovalsQuery, ToolApprovalsQueryVariables>(ToolApprovalsDocument, options);
+}
+export function useToolApprovalsLazyQuery(
+    baseOptions?: Apollo.LazyQueryHookOptions<ToolApprovalsQuery, ToolApprovalsQueryVariables>,
+) {
+    const options = { ...defaultOptions, ...baseOptions };
+    return Apollo.useLazyQuery<ToolApprovalsQuery, ToolApprovalsQueryVariables>(ToolApprovalsDocument, options);
+}
+// @ts-ignore
+export function useToolApprovalsSuspenseQuery(
+    baseOptions?: Apollo.SuspenseQueryHookOptions<ToolApprovalsQuery, ToolApprovalsQueryVariables>,
+): Apollo.UseSuspenseQueryResult<ToolApprovalsQuery, ToolApprovalsQueryVariables>;
+export function useToolApprovalsSuspenseQuery(
+    baseOptions?: Apollo.SkipToken | Apollo.SuspenseQueryHookOptions<ToolApprovalsQuery, ToolApprovalsQueryVariables>,
+): Apollo.UseSuspenseQueryResult<ToolApprovalsQuery | undefined, ToolApprovalsQueryVariables>;
+export function useToolApprovalsSuspenseQuery(
+    baseOptions?: Apollo.SkipToken | Apollo.SuspenseQueryHookOptions<ToolApprovalsQuery, ToolApprovalsQueryVariables>,
+) {
+    const options = baseOptions === Apollo.skipToken ? baseOptions : { ...defaultOptions, ...baseOptions };
+    return Apollo.useSuspenseQuery<ToolApprovalsQuery, ToolApprovalsQueryVariables>(ToolApprovalsDocument, options);
+}
+export type ToolApprovalsQueryHookResult = ReturnType<typeof useToolApprovalsQuery>;
+export type ToolApprovalsLazyQueryHookResult = ReturnType<typeof useToolApprovalsLazyQuery>;
+export type ToolApprovalsSuspenseQueryHookResult = ReturnType<typeof useToolApprovalsSuspenseQuery>;
+export type ToolApprovalsQueryResult = Apollo.QueryResult<ToolApprovalsQuery, ToolApprovalsQueryVariables>;
+export const PendingToolApprovalsDocument = gql`
+    query pendingToolApprovals($flowId: ID!) {
+        pendingToolApprovals(flowId: $flowId) {
+            ...toolApprovalFragment
+        }
+    }
+    ${ToolApprovalFragmentFragmentDoc}
+`;
+
+/**
+ * __usePendingToolApprovalsQuery__
+ *
+ * To run a query within a React component, call `usePendingToolApprovalsQuery` and pass it any options that fit your needs.
+ * When your component renders, `usePendingToolApprovalsQuery` returns an object from Apollo Client that contains loading, error, and data properties
+ * you can use to render your UI.
+ *
+ * @param baseOptions options that will be passed into the query, supported options are listed on: https://www.apollographql.com/docs/react/api/react-hooks/#options;
+ *
+ * @example
+ * const { data, loading, error } = usePendingToolApprovalsQuery({
+ *   variables: {
+ *      flowId: // value for 'flowId'
+ *   },
+ * });
+ */
+export function usePendingToolApprovalsQuery(
+    baseOptions: Apollo.QueryHookOptions<PendingToolApprovalsQuery, PendingToolApprovalsQueryVariables> &
+        ({ variables: PendingToolApprovalsQueryVariables; skip?: boolean } | { skip: boolean }),
+) {
+    const options = { ...defaultOptions, ...baseOptions };
+    return Apollo.useQuery<PendingToolApprovalsQuery, PendingToolApprovalsQueryVariables>(
+        PendingToolApprovalsDocument,
+        options,
+    );
+}
+export function usePendingToolApprovalsLazyQuery(
+    baseOptions?: Apollo.LazyQueryHookOptions<PendingToolApprovalsQuery, PendingToolApprovalsQueryVariables>,
+) {
+    const options = { ...defaultOptions, ...baseOptions };
+    return Apollo.useLazyQuery<PendingToolApprovalsQuery, PendingToolApprovalsQueryVariables>(
+        PendingToolApprovalsDocument,
+        options,
+    );
+}
+// @ts-ignore
+export function usePendingToolApprovalsSuspenseQuery(
+    baseOptions?: Apollo.SuspenseQueryHookOptions<PendingToolApprovalsQuery, PendingToolApprovalsQueryVariables>,
+): Apollo.UseSuspenseQueryResult<PendingToolApprovalsQuery, PendingToolApprovalsQueryVariables>;
+export function usePendingToolApprovalsSuspenseQuery(
+    baseOptions?:
+        | Apollo.SkipToken
+        | Apollo.SuspenseQueryHookOptions<PendingToolApprovalsQuery, PendingToolApprovalsQueryVariables>,
+): Apollo.UseSuspenseQueryResult<PendingToolApprovalsQuery | undefined, PendingToolApprovalsQueryVariables>;
+export function usePendingToolApprovalsSuspenseQuery(
+    baseOptions?:
+        | Apollo.SkipToken
+        | Apollo.SuspenseQueryHookOptions<PendingToolApprovalsQuery, PendingToolApprovalsQueryVariables>,
+) {
+    const options = baseOptions === Apollo.skipToken ? baseOptions : { ...defaultOptions, ...baseOptions };
+    return Apollo.useSuspenseQuery<PendingToolApprovalsQuery, PendingToolApprovalsQueryVariables>(
+        PendingToolApprovalsDocument,
+        options,
+    );
+}
+export type PendingToolApprovalsQueryHookResult = ReturnType<typeof usePendingToolApprovalsQuery>;
+export type PendingToolApprovalsLazyQueryHookResult = ReturnType<typeof usePendingToolApprovalsLazyQuery>;
+export type PendingToolApprovalsSuspenseQueryHookResult = ReturnType<typeof usePendingToolApprovalsSuspenseQuery>;
+export type PendingToolApprovalsQueryResult = Apollo.QueryResult<
+    PendingToolApprovalsQuery,
+    PendingToolApprovalsQueryVariables
+>;
+export const DecideToolApprovalDocument = gql`
+    mutation decideToolApproval($approvalId: ID!, $decision: ApprovalDecision!, $editedArgs: String, $reason: String) {
+        decideToolApproval(approvalId: $approvalId, decision: $decision, editedArgs: $editedArgs, reason: $reason) {
+            ...toolApprovalFragment
+        }
+    }
+    ${ToolApprovalFragmentFragmentDoc}
+`;
+export type DecideToolApprovalMutationFn = Apollo.MutationFunction<
+    DecideToolApprovalMutation,
+    DecideToolApprovalMutationVariables
+>;
+
+/**
+ * __useDecideToolApprovalMutation__
+ *
+ * To run a mutation, you first call `useDecideToolApprovalMutation` within a React component and pass it any options that fit your needs.
+ * When your component renders, `useDecideToolApprovalMutation` returns a tuple that includes:
+ * - A mutate function that you can call at any time to execute the mutation
+ * - An object with fields that represent the current status of the mutation's execution
+ *
+ * @param baseOptions options that will be passed into the mutation, supported options are listed on: https://www.apollographql.com/docs/react/api/react-hooks/#options-2;
+ *
+ * @example
+ * const [decideToolApprovalMutation, { data, loading, error }] = useDecideToolApprovalMutation({
+ *   variables: {
+ *      approvalId: // value for 'approvalId'
+ *      decision: // value for 'decision'
+ *      editedArgs: // value for 'editedArgs'
+ *      reason: // value for 'reason'
+ *   },
+ * });
+ */
+export function useDecideToolApprovalMutation(
+    baseOptions?: Apollo.MutationHookOptions<DecideToolApprovalMutation, DecideToolApprovalMutationVariables>,
+) {
+    const options = { ...defaultOptions, ...baseOptions };
+    return Apollo.useMutation<DecideToolApprovalMutation, DecideToolApprovalMutationVariables>(
+        DecideToolApprovalDocument,
+        options,
+    );
+}
+export type DecideToolApprovalMutationHookResult = ReturnType<typeof useDecideToolApprovalMutation>;
+export type DecideToolApprovalMutationResult = Apollo.MutationResult<DecideToolApprovalMutation>;
+export type DecideToolApprovalMutationOptions = Apollo.BaseMutationOptions<
+    DecideToolApprovalMutation,
+    DecideToolApprovalMutationVariables
+>;
+export const ToolApprovalRequestedDocument = gql`
+    subscription toolApprovalRequested($flowId: ID!) {
+        toolApprovalRequested(flowId: $flowId) {
+            ...toolApprovalFragment
+        }
+    }
+    ${ToolApprovalFragmentFragmentDoc}
+`;
+
+/**
+ * __useToolApprovalRequestedSubscription__
+ *
+ * To run a query within a React component, call `useToolApprovalRequestedSubscription` and pass it any options that fit your needs.
+ * When your component renders, `useToolApprovalRequestedSubscription` returns an object from Apollo Client that contains loading, error, and data properties
+ * you can use to render your UI.
+ *
+ * @param baseOptions options that will be passed into the subscription, supported options are listed on: https://www.apollographql.com/docs/react/api/react-hooks/#options;
+ *
+ * @example
+ * const { data, loading, error } = useToolApprovalRequestedSubscription({
+ *   variables: {
+ *      flowId: // value for 'flowId'
+ *   },
+ * });
+ */
+export function useToolApprovalRequestedSubscription(
+    baseOptions: Apollo.SubscriptionHookOptions<
+        ToolApprovalRequestedSubscription,
+        ToolApprovalRequestedSubscriptionVariables
+    > &
+        ({ variables: ToolApprovalRequestedSubscriptionVariables; skip?: boolean } | { skip: boolean }),
+) {
+    const options = { ...defaultOptions, ...baseOptions };
+    return Apollo.useSubscription<ToolApprovalRequestedSubscription, ToolApprovalRequestedSubscriptionVariables>(
+        ToolApprovalRequestedDocument,
+        options,
+    );
+}
+export type ToolApprovalRequestedSubscriptionHookResult = ReturnType<typeof useToolApprovalRequestedSubscription>;
+export type ToolApprovalRequestedSubscriptionResult = Apollo.SubscriptionResult<ToolApprovalRequestedSubscription>;
+export const ToolApprovalUpdatedDocument = gql`
+    subscription toolApprovalUpdated($flowId: ID!) {
+        toolApprovalUpdated(flowId: $flowId) {
+            ...toolApprovalFragment
+        }
+    }
+    ${ToolApprovalFragmentFragmentDoc}
+`;
+
+/**
+ * __useToolApprovalUpdatedSubscription__
+ *
+ * To run a query within a React component, call `useToolApprovalUpdatedSubscription` and pass it any options that fit your needs.
+ * When your component renders, `useToolApprovalUpdatedSubscription` returns an object from Apollo Client that contains loading, error, and data properties
+ * you can use to render your UI.
+ *
+ * @param baseOptions options that will be passed into the subscription, supported options are listed on: https://www.apollographql.com/docs/react/api/react-hooks/#options;
+ *
+ * @example
+ * const { data, loading, error } = useToolApprovalUpdatedSubscription({
+ *   variables: {
+ *      flowId: // value for 'flowId'
+ *   },
+ * });
+ */
+export function useToolApprovalUpdatedSubscription(
+    baseOptions: Apollo.SubscriptionHookOptions<
+        ToolApprovalUpdatedSubscription,
+        ToolApprovalUpdatedSubscriptionVariables
+    > &
+        ({ variables: ToolApprovalUpdatedSubscriptionVariables; skip?: boolean } | { skip: boolean }),
+) {
+    const options = { ...defaultOptions, ...baseOptions };
+    return Apollo.useSubscription<ToolApprovalUpdatedSubscription, ToolApprovalUpdatedSubscriptionVariables>(
+        ToolApprovalUpdatedDocument,
+        options,
+    );
+}
+export type ToolApprovalUpdatedSubscriptionHookResult = ReturnType<typeof useToolApprovalUpdatedSubscription>;
+export type ToolApprovalUpdatedSubscriptionResult = Apollo.SubscriptionResult<ToolApprovalUpdatedSubscription>;

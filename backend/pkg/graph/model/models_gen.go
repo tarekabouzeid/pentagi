@@ -467,6 +467,21 @@ type TestResult struct {
 	Error     *string `json:"error,omitempty"`
 }
 
+type ToolApproval struct {
+	ID          int64      `json:"id"`
+	FlowID      int64      `json:"flowId"`
+	TaskID      *int64     `json:"taskId,omitempty"`
+	ToolCallID  string     `json:"toolCallId"`
+	ToolName    string     `json:"toolName"`
+	Args        string     `json:"args"`
+	RiskClass   RiskClass  `json:"riskClass"`
+	Decision    string     `json:"decision"`
+	EditedArgs  *string    `json:"editedArgs,omitempty"`
+	Reason      *string    `json:"reason,omitempty"`
+	RequestedAt time.Time  `json:"requestedAt"`
+	DecidedAt   *time.Time `json:"decidedAt,omitempty"`
+}
+
 type ToolcallsStats struct {
 	TotalCount           int     `json:"totalCount"`
 	TotalDurationSeconds float64 `json:"totalDurationSeconds"`
@@ -660,6 +675,92 @@ func (e *AgentType) UnmarshalGQL(v interface{}) error {
 }
 
 func (e AgentType) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+type ApprovalDecision string
+
+const (
+	ApprovalDecisionApproved ApprovalDecision = "approved"
+	ApprovalDecisionDenied   ApprovalDecision = "denied"
+	ApprovalDecisionEdited   ApprovalDecision = "edited"
+)
+
+var AllApprovalDecision = []ApprovalDecision{
+	ApprovalDecisionApproved,
+	ApprovalDecisionDenied,
+	ApprovalDecisionEdited,
+}
+
+func (e ApprovalDecision) IsValid() bool {
+	switch e {
+	case ApprovalDecisionApproved, ApprovalDecisionDenied, ApprovalDecisionEdited:
+		return true
+	}
+	return false
+}
+
+func (e ApprovalDecision) String() string {
+	return string(e)
+}
+
+func (e *ApprovalDecision) UnmarshalGQL(v interface{}) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = ApprovalDecision(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid ApprovalDecision", str)
+	}
+	return nil
+}
+
+func (e ApprovalDecision) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+type HITLMode string
+
+const (
+	HITLModePerTool        HITLMode = "per_tool"
+	HITLModeRiskClassified HITLMode = "risk_classified"
+	HITLModePolicyOnly     HITLMode = "policy_only"
+)
+
+var AllHITLMode = []HITLMode{
+	HITLModePerTool,
+	HITLModeRiskClassified,
+	HITLModePolicyOnly,
+}
+
+func (e HITLMode) IsValid() bool {
+	switch e {
+	case HITLModePerTool, HITLModeRiskClassified, HITLModePolicyOnly:
+		return true
+	}
+	return false
+}
+
+func (e HITLMode) String() string {
+	return string(e)
+}
+
+func (e *HITLMode) UnmarshalGQL(v interface{}) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = HITLMode(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid HITLMode", str)
+	}
+	return nil
+}
+
+func (e HITLMode) MarshalGQL(w io.Writer) {
 	fmt.Fprint(w, strconv.Quote(e.String()))
 }
 
@@ -1067,6 +1168,51 @@ func (e *ResultType) UnmarshalGQL(v interface{}) error {
 }
 
 func (e ResultType) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+type RiskClass string
+
+const (
+	RiskClassLow     RiskClass = "low"
+	RiskClassMedium  RiskClass = "medium"
+	RiskClassHigh    RiskClass = "high"
+	RiskClassBlocked RiskClass = "blocked"
+)
+
+var AllRiskClass = []RiskClass{
+	RiskClassLow,
+	RiskClassMedium,
+	RiskClassHigh,
+	RiskClassBlocked,
+}
+
+func (e RiskClass) IsValid() bool {
+	switch e {
+	case RiskClassLow, RiskClassMedium, RiskClassHigh, RiskClassBlocked:
+		return true
+	}
+	return false
+}
+
+func (e RiskClass) String() string {
+	return string(e)
+}
+
+func (e *RiskClass) UnmarshalGQL(v interface{}) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = RiskClass(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid RiskClass", str)
+	}
+	return nil
+}
+
+func (e RiskClass) MarshalGQL(w io.Writer) {
 	fmt.Fprint(w, strconv.Quote(e.String()))
 }
 

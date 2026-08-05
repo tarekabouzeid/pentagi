@@ -114,6 +114,8 @@ const subscriptionToCacheFieldMap: Record<string, string> = {
     taskCreated: 'tasks',
     taskUpdated: 'tasks',
     terminalLogAdded: 'terminalLogs',
+    toolApprovalRequested: 'toolApprovals',
+    toolApprovalUpdated: 'toolApprovals',
     vectorStoreLogAdded: 'vectorStoreLogs',
 };
 

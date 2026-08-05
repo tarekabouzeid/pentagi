@@ -1126,3 +1126,63 @@ type Vecstorelog struct {
 	SubtaskID sql.NullInt64      `json:"subtask_id"`
 	CreatedAt sql.NullTime       `json:"created_at"`
 }
+
+type ToolApprovalDecision string
+
+const (
+	ToolApprovalDecisionPending  ToolApprovalDecision = "pending"
+	ToolApprovalDecisionApproved ToolApprovalDecision = "approved"
+	ToolApprovalDecisionDenied   ToolApprovalDecision = "denied"
+	ToolApprovalDecisionEdited   ToolApprovalDecision = "edited"
+	ToolApprovalDecisionTimeout  ToolApprovalDecision = "timeout"
+)
+
+func (e *ToolApprovalDecision) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ToolApprovalDecision(s)
+	case string:
+		*e = ToolApprovalDecision(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ToolApprovalDecision: %T", src)
+	}
+	return nil
+}
+
+type RiskClass string
+
+const (
+	RiskClassLow     RiskClass = "low"
+	RiskClassMedium  RiskClass = "medium"
+	RiskClassHigh    RiskClass = "high"
+	RiskClassBlocked RiskClass = "blocked"
+)
+
+func (e *RiskClass) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = RiskClass(s)
+	case string:
+		*e = RiskClass(s)
+	default:
+		return fmt.Errorf("unsupported scan type for RiskClass: %T", src)
+	}
+	return nil
+}
+
+type ToolApproval struct {
+	ID          int64                `json:"id"`
+	FlowID      int64                `json:"flow_id"`
+	TaskID      sql.NullInt64        `json:"task_id"`
+	ToolCallID  string               `json:"tool_call_id"`
+	ToolName    string               `json:"tool_name"`
+	Args        json.RawMessage      `json:"args"`
+	RiskClass   RiskClass            `json:"risk_class"`
+	Decision    ToolApprovalDecision `json:"decision"`
+	EditedArgs  json.RawMessage      `json:"edited_args"`
+	Reason      sql.NullString       `json:"reason"`
+	DecidedBy   sql.NullInt64        `json:"decided_by"`
+	RequestedAt sql.NullTime         `json:"requested_at"`
+	DecidedAt   sql.NullTime         `json:"decided_at"`
+	CreatedAt   sql.NullTime         `json:"created_at"`
+}

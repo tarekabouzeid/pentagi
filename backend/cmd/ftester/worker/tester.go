@@ -9,6 +9,7 @@ import (
 	"pentagi/pkg/config"
 	"pentagi/pkg/database"
 	"pentagi/pkg/docker"
+	"pentagi/pkg/executor"
 	obs "pentagi/pkg/observability"
 	"pentagi/pkg/observability/langfuse"
 	"pentagi/pkg/providers"
@@ -66,7 +67,7 @@ func NewTester(
 	functions := &tools.Functions{}
 
 	// Initialize tools flowExecutor
-	flowExecutor, err := tools.NewFlowToolsExecutor(db, cfg, dockerClient, functions, flowID)
+	flowExecutor, err := tools.NewFlowToolsExecutor(db, cfg, dockerClient, executor.NewDockerBackend(dockerClient), functions, flowID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create flow tools executor: %w", err)
 	}

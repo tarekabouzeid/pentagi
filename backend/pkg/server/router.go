@@ -17,6 +17,7 @@ import (
 	"pentagi/pkg/controller"
 	"pentagi/pkg/database"
 	"pentagi/pkg/graph/subscriptions"
+	"pentagi/pkg/hitl"
 	"pentagi/pkg/providers"
 	"pentagi/pkg/server/auth"
 	"pentagi/pkg/server/logger"
@@ -79,6 +80,7 @@ func NewRouter(
 	providers providers.ProviderController,
 	controller controller.FlowController,
 	subscriptions subscriptions.SubscriptionsController,
+	hitlDispatcher *hitl.Dispatcher,
 ) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 	if cfg.Debug {
@@ -144,8 +146,9 @@ func NewRouter(
 	promptService := services.NewPromptService(orm)
 	analyticsService := services.NewAnalyticsService(orm)
 	tokenService := services.NewTokenService(orm, cfg.CookieSigningSalt, tokenCache, subscriptions)
+	hitlService := services.NewHITLService(hitlDispatcher, controller)
 	graphqlService := services.NewGraphqlService(
-		db, cfg, baseURL, cfg.CorsOrigins, tokenCache, providers, controller, subscriptions,
+		db, cfg, baseURL, cfg.CorsOrigins, tokenCache, providers, controller, subscriptions, hitlDispatcher,
 	)
 
 	router := gin.Default()
@@ -236,6 +239,7 @@ func NewRouter(
 		setScreenshotsGroup(privateGroup, screenshotService)
 		setPromptsGroup(privateGroup, promptService)
 		setAnalyticsGroup(privateGroup, analyticsService)
+		setHITLGroup(privateGroup, hitlService)
 	}
 
 	privateUserGroup := api.Group("/")
@@ -563,5 +567,15 @@ func setTokensGroup(parent *gin.RouterGroup, svc *services.TokenService) {
 		tokensGroup.GET("/:tokenID", svc.GetToken)
 		tokensGroup.PUT("/:tokenID", svc.UpdateToken)
 		tokensGroup.DELETE("/:tokenID", svc.DeleteToken)
+	}
+}
+
+func setHITLGroup(parent *gin.RouterGroup, svc *services.HITLService) {
+	hitlGroup := parent.Group("/flows/:flowID")
+	{
+		hitlGroup.POST("/approvals/:approvalID/decide", svc.DecideToolApproval)
+		hitlGroup.POST("/pause", svc.PauseFlow)
+		hitlGroup.POST("/resume", svc.ResumeFlow)
+		hitlGroup.POST("/inject", svc.InjectCommand)
 	}
 }

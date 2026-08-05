@@ -12,6 +12,7 @@ import (
 	"pentagi/pkg/csum"
 	"pentagi/pkg/database"
 	"pentagi/pkg/graphiti"
+	"pentagi/pkg/hitl"
 	obs "pentagi/pkg/observability"
 	"pentagi/pkg/observability/langfuse"
 	"pentagi/pkg/providers/embeddings"
@@ -86,6 +87,7 @@ type FlowProvider interface {
 	SetTitle(title string)
 	SetAgentLogProvider(agentLog tools.AgentLogProvider)
 	SetMsgLogProvider(msgLog tools.MsgLogProvider)
+	SetHITLGate(gate hitl.Gate)
 	SetProvider(ctx context.Context, newProvider provider.Provider) error
 
 	GetTaskTitle(ctx context.Context, input string) (string, error)
@@ -153,6 +155,8 @@ type flowProvider struct {
 
 	summarizer csum.Summarizer
 
+	hitlGate hitl.Gate
+
 	maxGACallsLimit int
 	maxLACallsLimit int
 	buildMonitor    executionMonitorBuilder
@@ -172,6 +176,13 @@ func (fp *flowProvider) SetMsgLogProvider(msgLog tools.MsgLogProvider) {
 	defer fp.mx.Unlock()
 
 	fp.msgLog = msgLog
+}
+
+func (fp *flowProvider) SetHITLGate(gate hitl.Gate) {
+	fp.mx.Lock()
+	defer fp.mx.Unlock()
+
+	fp.hitlGate = gate
 }
 
 func (fp *flowProvider) SetProvider(ctx context.Context, newProvider provider.Provider) error {

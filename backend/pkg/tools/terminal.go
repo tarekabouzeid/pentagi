@@ -14,6 +14,7 @@ import (
 
 	"pentagi/pkg/database"
 	"pentagi/pkg/docker"
+	"pentagi/pkg/executor"
 	obs "pentagi/pkg/observability"
 	"pentagi/pkg/observability/langfuse"
 
@@ -44,7 +45,7 @@ type terminal struct {
 	subtaskID    *int64
 	containerID  int64
 	containerLID string
-	dockerClient docker.DockerClient
+	backend      executor.Backend
 	tlp          TermLogProvider
 }
 
@@ -52,7 +53,7 @@ func NewTerminalTool(
 	flowID int64,
 	taskID, subtaskID *int64,
 	containerID int64, containerLID string,
-	dockerClient docker.DockerClient,
+	backend executor.Backend,
 	tlp TermLogProvider,
 ) Tool {
 	return &terminal{
@@ -61,7 +62,7 @@ func NewTerminalTool(
 		subtaskID:    subtaskID,
 		containerID:  containerID,
 		containerLID: containerLID,
-		dockerClient: dockerClient,
+		backend:      backend,
 		tlp:          tlp,
 	}
 }
@@ -153,7 +154,7 @@ func (t *terminal) ExecCommand(
 	}
 
 	// verify container runtime status
-	isRunning, err := t.dockerClient.IsContainerRunning(ctx, t.containerLID)
+	isRunning, err := t.backend.IsContainerRunning(ctx, t.containerLID)
 	if err != nil {
 		return "", fmt.Errorf("runtime verification failed: %w", err)
 	}
@@ -176,7 +177,7 @@ func (t *terminal) ExecCommand(
 		timeout = defaultExecCommandTimeout
 	}
 
-	createResp, err := t.dockerClient.ContainerExecCreate(ctx, containerName, container.ExecOptions{
+	createResp, err := t.backend.ContainerExecCreate(ctx, containerName, container.ExecOptions{
 		Cmd:          cmd,
 		AttachStdout: true,
 		AttachStderr: true,
@@ -218,7 +219,7 @@ func (t *terminal) getExecResult(ctx context.Context, id string, timeout time.Du
 	defer cancel()
 
 	// attach to the exec process
-	resp, err := t.dockerClient.ContainerExecAttach(ctx, id, container.ExecAttachOptions{
+	resp, err := t.backend.ContainerExecAttach(ctx, id, container.ExecAttachOptions{
 		Tty: true,
 	})
 	if err != nil {
@@ -258,7 +259,7 @@ func (t *terminal) getExecResult(ctx context.Context, id string, timeout time.Du
 	}
 
 	// wait for the exec process to finish
-	_, err = t.dockerClient.ContainerExecInspect(ctx, id)
+	_, err = t.backend.ContainerExecInspect(ctx, id)
 	if err != nil {
 		return "", fmt.Errorf("failed to inspect exec process: %w", err)
 	}
@@ -281,7 +282,7 @@ func (t *terminal) getExecResult(ctx context.Context, id string, timeout time.Du
 func (t *terminal) ReadFile(ctx context.Context, flowID int64, path string) (string, error) {
 	containerName := PrimaryTerminalName(flowID)
 
-	isRunning, err := t.dockerClient.IsContainerRunning(ctx, t.containerLID)
+	isRunning, err := t.backend.IsContainerRunning(ctx, t.containerLID)
 	if err != nil {
 		return "", fmt.Errorf("runtime verification failed: %w", err)
 	}
@@ -299,7 +300,7 @@ func (t *terminal) ReadFile(ctx context.Context, flowID int64, path string) (str
 		return "", fmt.Errorf("failed to put terminal log (read file cmd): %w", err)
 	}
 
-	reader, stats, err := t.dockerClient.CopyFromContainer(ctx, containerName, path)
+	reader, stats, err := t.backend.CopyFromContainer(ctx, containerName, path)
 	if err != nil {
 		return "", fmt.Errorf("failed to copy file: %w", err)
 	}
@@ -363,7 +364,7 @@ func (t *terminal) ReadFile(ctx context.Context, flowID int64, path string) (str
 func (t *terminal) WriteFile(ctx context.Context, flowID int64, content string, path string) (string, error) {
 	containerName := PrimaryTerminalName(flowID)
 
-	isRunning, err := t.dockerClient.IsContainerRunning(ctx, t.containerLID)
+	isRunning, err := t.backend.IsContainerRunning(ctx, t.containerLID)
 	if err != nil {
 		return "", fmt.Errorf("container runtime check failed: %w", err)
 	}
@@ -398,7 +399,7 @@ func (t *terminal) WriteFile(ctx context.Context, flowID int64, content string, 
 	}
 
 	dir := filepath.Dir(path)
-	err = t.dockerClient.CopyToContainer(ctx, containerName, dir, tarBuffer, container.CopyToContainerOptions{
+	err = t.backend.CopyToContainer(ctx, containerName, dir, tarBuffer, container.CopyToContainerOptions{
 		AllowOverwriteDirWithFile: true,
 	})
 	if err != nil {
@@ -421,7 +422,7 @@ func PrimaryTerminalName(flowID int64) string {
 }
 
 func (t *terminal) IsAvailable() bool {
-	return t.dockerClient != nil
+	return t.backend != nil
 }
 
 func truncateString(s string, maxLen int) string {

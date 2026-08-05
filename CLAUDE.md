@@ -137,6 +137,15 @@ State is managed primarily through Apollo Client (GraphQL) with real-time update
 7. Add the provider icon in `frontend/src/components/icons/<name>.tsx` and register it in `frontend/src/components/icons/provider-icon.tsx`.
 8. Update the GraphQL schema/types and frontend settings page if needed.
 
+### Adding a New Executor Backend
+
+1. Create `backend/pkg/executor/<name>/backend.go` implementing the `executor.Backend` interface (defined in `pkg/executor/backend.go`).
+2. The interface has 7 methods mirroring Docker's exec/copy API: `ContainerExecCreate`, `ContainerExecAttach`, `ContainerExecInspect`, `CopyToContainer`, `CopyFromContainer`, `IsContainerRunning`, `GetDefaultImage`.
+3. Add connection/config fields to `pkg/config/config.go` (e.g., `<NAME>_ENABLED`, `<NAME>_HOST`, `<NAME>_SSH_KEY_PATH`).
+4. Wire the backend into `pkg/controller/flow.go` — construct it based on `hitl.Config.ExecutorBackend` and pass it to `tools.NewFlowToolsExecutor`.
+5. Add the backend name to the `executor_backend` field documentation in `backend/docs/hitl.md`.
+6. Optionally implement `executor.LifecycleManager` for sandbox provisioning/teardown if needed.
+
 ### Code Generation
 
 When modifying `backend/pkg/graph/schema.graphqls`, re-run the gqlgen command to regenerate resolver stubs. When modifying REST handler annotations, re-run swag to update Swagger docs. When modifying `frontend/src/graphql/*.graphql` query files, re-run `npm run graphql:generate` to update TypeScript types.

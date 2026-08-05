@@ -11,6 +11,7 @@ import (
 
 type Querier interface {
 	AddFavoriteFlow(ctx context.Context, arg AddFavoriteFlowParams) (UserPreference, error)
+	CountConsecutiveDenials(ctx context.Context, flowID int64) (int64, error)
 	CreateAPIToken(ctx context.Context, arg CreateAPITokenParams) (ApiToken, error)
 	CreateAgentLog(ctx context.Context, arg CreateAgentLogParams) (Agentlog, error)
 	CreateAssistant(ctx context.Context, arg CreateAssistantParams) (Assistant, error)
@@ -28,6 +29,7 @@ type Querier interface {
 	CreateSubtask(ctx context.Context, arg CreateSubtaskParams) (Subtask, error)
 	CreateTask(ctx context.Context, arg CreateTaskParams) (Task, error)
 	CreateTermLog(ctx context.Context, arg CreateTermLogParams) (Termlog, error)
+	CreateToolApproval(ctx context.Context, arg CreateToolApprovalParams) (ToolApproval, error)
 	CreateToolcall(ctx context.Context, arg CreateToolcallParams) (Toolcall, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	CreateUserPreferences(ctx context.Context, arg CreateUserPreferencesParams) (UserPreference, error)
@@ -156,6 +158,10 @@ type Querier interface {
 	// Get all tasks for a flow
 	GetTasksForFlow(ctx context.Context, flowID int64) ([]GetTasksForFlowRow, error)
 	GetTermLog(ctx context.Context, id int64) (Termlog, error)
+	GetToolApproval(ctx context.Context, id int64) (ToolApproval, error)
+	GetToolApprovalsByFlow(ctx context.Context, flowID int64) ([]ToolApproval, error)
+	GetPendingToolApprovals(ctx context.Context, flowID int64) ([]ToolApproval, error)
+	GetAllPendingToolApprovals(ctx context.Context) ([]ToolApproval, error)
 	// Get all toolcalls for a flow
 	GetToolcallsForFlow(ctx context.Context, flowID int64) ([]GetToolcallsForFlowRow, error)
 	// Get toolcalls stats by day for the last 3 months
@@ -246,6 +252,7 @@ type Querier interface {
 	UpdateTaskFinishedResult(ctx context.Context, arg UpdateTaskFinishedResultParams) (Task, error)
 	UpdateTaskResult(ctx context.Context, arg UpdateTaskResultParams) (Task, error)
 	UpdateTaskStatus(ctx context.Context, arg UpdateTaskStatusParams) (Task, error)
+	UpdateToolApprovalDecision(ctx context.Context, arg UpdateToolApprovalDecisionParams) (ToolApproval, error)
 	UpdateToolcallFailedResult(ctx context.Context, arg UpdateToolcallFailedResultParams) (Toolcall, error)
 	UpdateToolcallFinishedResult(ctx context.Context, arg UpdateToolcallFinishedResultParams) (Toolcall, error)
 	UpdateToolcallStatus(ctx context.Context, arg UpdateToolcallStatusParams) (Toolcall, error)

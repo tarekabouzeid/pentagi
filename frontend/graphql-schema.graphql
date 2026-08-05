@@ -465,6 +465,21 @@ fragment flowExecutionStatsFragment on FlowExecutionStats {
     }
 }
 
+fragment toolApprovalFragment on ToolApproval {
+    id
+    flowId
+    taskId
+    toolCallId
+    toolName
+    args
+    riskClass
+    decision
+    editedArgs
+    reason
+    requestedAt
+    decidedAt
+}
+
 # ==================== Queries ====================
 
 query flows {
@@ -1231,5 +1246,37 @@ subscription flowTemplateUpdated {
 subscription flowTemplateDeleted {
     flowTemplateDeleted {
         ...flowTemplateFragment
+    }
+}
+
+# ==================== HITL Tool Approvals ====================
+
+query toolApprovals($flowId: ID!) {
+    toolApprovals(flowId: $flowId) {
+        ...toolApprovalFragment
+    }
+}
+
+query pendingToolApprovals($flowId: ID!) {
+    pendingToolApprovals(flowId: $flowId) {
+        ...toolApprovalFragment
+    }
+}
+
+mutation decideToolApproval($approvalId: ID!, $decision: ApprovalDecision!, $editedArgs: String, $reason: String) {
+    decideToolApproval(approvalId: $approvalId, decision: $decision, editedArgs: $editedArgs, reason: $reason) {
+        ...toolApprovalFragment
+    }
+}
+
+subscription toolApprovalRequested($flowId: ID!) {
+    toolApprovalRequested(flowId: $flowId) {
+        ...toolApprovalFragment
+    }
+}
+
+subscription toolApprovalUpdated($flowId: ID!) {
+    toolApprovalUpdated(flowId: $flowId) {
+        ...toolApprovalFragment
     }
 }

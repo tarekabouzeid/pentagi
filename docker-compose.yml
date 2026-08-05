@@ -23,17 +23,22 @@ networks:
 
 services:
   pentagi:
-    image: ${PENTAGI_IMAGE:-vxcontrol/pentagi:latest}
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: local/pentagi:latest
     restart: unless-stopped
     container_name: pentagi
     hostname: pentagi
+    depends_on:
+      pgvector:
+        condition: service_healthy
+      litellm:
+        condition: service_healthy
     expose:
       - 8443/tcp
     ports:
       - ${PENTAGI_LISTEN_IP:-127.0.0.1}:${PENTAGI_LISTEN_PORT:-8443}:8443
-    depends_on:
-      pgvector:
-        condition: service_healthy
     environment:
       - DEBUG=${DEBUG:-false}
       - DOCKER_GID=998
@@ -208,6 +213,7 @@ services:
       start_period: 5s
     volumes:
       - pentagi-postgres-data:/var/lib/postgresql/data
+      - ./init-litellm-db.sh:/docker-entrypoint-initdb.d/init-litellm-db.sh
     networks:
       - pentagi-network
 
@@ -254,3 +260,95 @@ services:
     networks:
       - pentagi-network
     shm_size: 2g
+
+  llama-cpp:
+    image: ghcr.io/ggml-org/llama.cpp:server-cuda
+    container_name: llama-qwen
+    hostname: llama-cpp
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    volumes:
+      - ~/llama-cpp/llm/models:/models
+    command:
+      - -m
+      - /models/Qwen3.6-27B-Q4_K_M.gguf
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+      - --ctx-size
+      - "16384"
+      - --n-gpu-layers
+      - "999"
+      - --batch-size
+      - "2048"
+      - --ubatch-size
+      - "1024"
+      - -fa
+      - "on"
+      - --cont-batching
+      - --jinja
+      - --metrics
+      - --no-warmup
+    logging:
+      options:
+        max-size: 50m
+        max-file: "7"
+    networks:
+      - pentagi-network
+
+  litellm:
+    image: ghcr.io/berriai/litellm:main-stable
+    container_name: litellm
+    hostname: litellm
+    restart: unless-stopped
+    ports:
+      - "4000:4000"
+    volumes:
+      - ./litellm-config.yaml:/app/config.yaml
+    command:
+      - "--config=/app/config.yaml"
+      - "--port=4000"
+      - "--host=0.0.0.0"
+    environment:
+      - LITELLM_MASTER_KEY=sk-pentagi-litellm-key
+      - DATABASE_URL=postgresql://postgres:postgres@pgvector:5432/litellm
+    depends_on:
+      - llama-cpp
+      - pgvector
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c \"import urllib.request; urllib.request.urlopen('http://localhost:4000/health/liveliness')\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    logging:
+      options:
+        max-size: 50m
+        max-file: "7"
+    networks:
+      - pentagi-network
+
+  juice-shop:
+    image: bkimminich/juice-shop:latest
+    restart: unless-stopped
+    container_name: juice-shop
+    hostname: juice-shop
+    expose:
+      - 3000/tcp
+    ports:
+      - "3000:3000"
+    networks:
+      - pentagi-network
+    logging:
+      options:
+        max-size: 50m
+        max-file: "7"

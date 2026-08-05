@@ -9,6 +9,44 @@ enum StatusType {
   failed
 }
 
+# HITL approval decision types
+enum ApprovalDecision {
+  approved
+  denied
+  edited
+}
+
+# Risk classification for tool calls
+enum RiskClass {
+  low
+  medium
+  high
+  blocked
+}
+
+# HITL mode for flow configuration
+enum HITLMode {
+  per_tool
+  risk_classified
+  policy_only
+}
+
+# Tool approval request/response type
+type ToolApproval {
+  id: ID!
+  flowId: ID!
+  taskId: ID
+  toolCallId: String!
+  toolName: String!
+  args: String!
+  riskClass: RiskClass!
+  decision: String!
+  editedArgs: String
+  reason: String
+  requestedAt: Time!
+  decidedAt: Time
+}
+
 # LLM provider types supported by PentAGI
 enum ProviderType {
   openai
@@ -851,6 +889,10 @@ type Query {
   # Flow Templates management
   flowTemplate(templateId: ID!): FlowTemplate
   flowTemplates: [FlowTemplate!]!
+
+  # HITL (Human-In-The-Loop) approvals
+  toolApprovals(flowId: ID!): [ToolApproval!]!
+  pendingToolApprovals(flowId: ID!): [ToolApproval!]!
 }
 
 type Mutation {
@@ -894,6 +936,12 @@ type Mutation {
   createFlowTemplate(input: CreateFlowTemplateInput!): FlowTemplate!
   updateFlowTemplate(templateId: ID!, input: UpdateFlowTemplateInput!): FlowTemplate!
   deleteFlowTemplate(templateId: ID!): ResultType!
+
+  # HITL (Human-In-The-Loop) approval management
+  decideToolApproval(approvalId: ID!, decision: ApprovalDecision!, editedArgs: String, reason: String): ToolApproval!
+  pauseFlow(flowId: ID!): ResultType!
+  resumeFlow(flowId: ID!): ResultType!
+  injectCommand(flowId: ID!, command: String!): ResultType!
 }
 
 type Subscription {
@@ -937,4 +985,8 @@ type Subscription {
   flowTemplateCreated: FlowTemplate!
   flowTemplateUpdated: FlowTemplate!
   flowTemplateDeleted: FlowTemplate!
+
+  # HITL (Human-In-The-Loop) approval events
+  toolApprovalRequested(flowId: ID!): ToolApproval!
+  toolApprovalUpdated(flowId: ID!): ToolApproval!
 }

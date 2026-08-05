@@ -222,6 +222,16 @@ type Config struct {
 
 	// === Agent Planning Phase Configuration ===
 	AgentPlanningStepEnabled bool `env:"AGENT_PLANNING_STEP_ENABLED" envDefault:"false"`
+
+	// === NVIDIA OpenShell Sandbox Configuration ===
+	OpenShellEnabled        bool   `env:"OPENSHELL_ENABLED" envDefault:"false"`
+	OpenShellHost           string `env:"OPENSHELL_HOST" envDefault:"localhost"`
+	OpenShellSSHPort        int    `env:"OPENSHELL_SSH_PORT" envDefault:"22"`
+	OpenShellSSHUser        string `env:"OPENSHELL_SSH_USER" envDefault:"agent"`
+	OpenShellSSHKeyPath     string `env:"OPENSHELL_SSH_KEY_PATH"`
+	OpenShellCLIPath        string `env:"OPENSHELL_CLI_PATH" envDefault:"openshell"`
+	OpenShellKnownHostsPath string `env:"OPENSHELL_KNOWN_HOSTS_PATH"`
+	OpenShellDefaultPreset  string `env:"OPENSHELL_DEFAULT_PRESET" envDefault:"web_pentest"`
 }
 
 func NewConfig() (*Config, error) {

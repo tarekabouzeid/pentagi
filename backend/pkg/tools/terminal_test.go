@@ -11,6 +11,7 @@ import (
 
 	"pentagi/pkg/database"
 	"pentagi/pkg/docker"
+	"pentagi/pkg/executor"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
@@ -101,6 +102,7 @@ func (m *contextAwareMockDockerClient) Cleanup(_ context.Context) error { return
 func (m *contextAwareMockDockerClient) GetDefaultImage() string         { return "test-image" }
 
 var _ docker.DockerClient = (*contextAwareMockDockerClient)(nil)
+var _ executor.Backend = (*contextAwareMockDockerClient)(nil)
 
 func TestExecCommandDetachSurvivesParentCancel(t *testing.T) {
 	// This test validates the fix for Issue #176:
@@ -125,7 +127,7 @@ func TestExecCommandDetachSurvivesParentCancel(t *testing.T) {
 		flowID:       1,
 		containerID:  1,
 		containerLID: "test-container",
-		dockerClient: mock,
+		backend:      mock,
 		tlp:          &contextTestTermLogProvider{},
 	}
 
@@ -166,7 +168,7 @@ func TestExecCommandNonDetachRespectsParentCancel(t *testing.T) {
 		flowID:       1,
 		containerID:  1,
 		containerLID: "test-container",
-		dockerClient: mock,
+		backend:      mock,
 		tlp:          &contextTestTermLogProvider{},
 	}
 

@@ -31,6 +31,8 @@ import {
     useTaskCreatedSubscription,
     useTaskUpdatedSubscription,
     useTerminalLogAddedSubscription,
+    useToolApprovalRequestedSubscription,
+    useToolApprovalUpdatedSubscription,
     useVectorStoreLogAddedSubscription,
 } from '@/graphql/types';
 import { Log } from '@/lib/log';
@@ -144,6 +146,10 @@ export const FlowProvider = ({ children }: FlowProviderProps) => {
     useAssistantDeletedSubscription({ skip: subscriptionSkip, variables: subscriptionVariables });
     useAssistantLogAddedSubscription({ skip: subscriptionSkip, variables: subscriptionVariables });
     useAssistantLogUpdatedSubscription({ skip: subscriptionSkip, variables: subscriptionVariables });
+
+    // HITL tool approval subscriptions
+    useToolApprovalRequestedSubscription({ skip: subscriptionSkip, variables: subscriptionVariables });
+    useToolApprovalUpdatedSubscription({ skip: subscriptionSkip, variables: subscriptionVariables });
 
     const selectAssistant = useCallback(
         (assistantId: null | string) => {

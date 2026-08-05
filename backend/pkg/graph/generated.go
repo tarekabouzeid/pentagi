@@ -314,6 +314,7 @@ type ComplexityRoot struct {
 		CreateFlowTemplate func(childComplexity int, input model.CreateFlowTemplateInput) int
 		CreatePrompt       func(childComplexity int, typeArg model.PromptType, template string) int
 		CreateProvider     func(childComplexity int, name string, typeArg model.ProviderType, agents model.AgentsConfig) int
+		DecideToolApproval func(childComplexity int, approvalID int64, decision model.ApprovalDecision, editedArgs *string, reason *string) int
 		DeleteAPIToken     func(childComplexity int, tokenID string) int
 		DeleteAssistant    func(childComplexity int, flowID int64, assistantID int64) int
 		DeleteFavoriteFlow func(childComplexity int, flowID int64) int
@@ -322,8 +323,11 @@ type ComplexityRoot struct {
 		DeletePrompt       func(childComplexity int, promptID int64) int
 		DeleteProvider     func(childComplexity int, providerID int64) int
 		FinishFlow         func(childComplexity int, flowID int64) int
+		InjectCommand      func(childComplexity int, flowID int64, command string) int
+		PauseFlow          func(childComplexity int, flowID int64) int
 		PutUserInput       func(childComplexity int, flowID int64, input string, modelProvider *string) int
 		RenameFlow         func(childComplexity int, flowID int64, title string) int
+		ResumeFlow         func(childComplexity int, flowID int64) int
 		StopAssistant      func(childComplexity int, flowID int64, assistantID int64) int
 		StopFlow           func(childComplexity int, flowID int64) int
 		TestAgent          func(childComplexity int, typeArg model.ProviderType, agentType model.AgentConfigType, agent model.AgentConfig) int
@@ -431,6 +435,7 @@ type ComplexityRoot struct {
 		FlowsStatsByPeriod              func(childComplexity int, period model.UsageStatsPeriod) int
 		FlowsStatsTotal                 func(childComplexity int) int
 		MessageLogs                     func(childComplexity int, flowID int64) int
+		PendingToolApprovals            func(childComplexity int, flowID int64) int
 		Providers                       func(childComplexity int) int
 		Screenshots                     func(childComplexity int, flowID int64) int
 		SearchLogs                      func(childComplexity int, flowID int64) int
@@ -440,6 +445,7 @@ type ComplexityRoot struct {
 		SettingsUser                    func(childComplexity int) int
 		Tasks                           func(childComplexity int, flowID int64) int
 		TerminalLogs                    func(childComplexity int, flowID int64) int
+		ToolApprovals                   func(childComplexity int, flowID int64) int
 		ToolcallsStatsByFlow            func(childComplexity int, flowID int64) int
 		ToolcallsStatsByFunction        func(childComplexity int) int
 		ToolcallsStatsByFunctionForFlow func(childComplexity int, flowID int64) int
@@ -491,33 +497,35 @@ type ComplexityRoot struct {
 	}
 
 	Subscription struct {
-		APITokenCreated     func(childComplexity int) int
-		APITokenDeleted     func(childComplexity int) int
-		APITokenUpdated     func(childComplexity int) int
-		AgentLogAdded       func(childComplexity int, flowID int64) int
-		AssistantCreated    func(childComplexity int, flowID int64) int
-		AssistantDeleted    func(childComplexity int, flowID int64) int
-		AssistantLogAdded   func(childComplexity int, flowID int64) int
-		AssistantLogUpdated func(childComplexity int, flowID int64) int
-		AssistantUpdated    func(childComplexity int, flowID int64) int
-		FlowCreated         func(childComplexity int) int
-		FlowDeleted         func(childComplexity int) int
-		FlowTemplateCreated func(childComplexity int) int
-		FlowTemplateDeleted func(childComplexity int) int
-		FlowTemplateUpdated func(childComplexity int) int
-		FlowUpdated         func(childComplexity int) int
-		MessageLogAdded     func(childComplexity int, flowID int64) int
-		MessageLogUpdated   func(childComplexity int, flowID int64) int
-		ProviderCreated     func(childComplexity int) int
-		ProviderDeleted     func(childComplexity int) int
-		ProviderUpdated     func(childComplexity int) int
-		ScreenshotAdded     func(childComplexity int, flowID int64) int
-		SearchLogAdded      func(childComplexity int, flowID int64) int
-		SettingsUserUpdated func(childComplexity int) int
-		TaskCreated         func(childComplexity int, flowID int64) int
-		TaskUpdated         func(childComplexity int, flowID int64) int
-		TerminalLogAdded    func(childComplexity int, flowID int64) int
-		VectorStoreLogAdded func(childComplexity int, flowID int64) int
+		APITokenCreated       func(childComplexity int) int
+		APITokenDeleted       func(childComplexity int) int
+		APITokenUpdated       func(childComplexity int) int
+		AgentLogAdded         func(childComplexity int, flowID int64) int
+		AssistantCreated      func(childComplexity int, flowID int64) int
+		AssistantDeleted      func(childComplexity int, flowID int64) int
+		AssistantLogAdded     func(childComplexity int, flowID int64) int
+		AssistantLogUpdated   func(childComplexity int, flowID int64) int
+		AssistantUpdated      func(childComplexity int, flowID int64) int
+		FlowCreated           func(childComplexity int) int
+		FlowDeleted           func(childComplexity int) int
+		FlowTemplateCreated   func(childComplexity int) int
+		FlowTemplateDeleted   func(childComplexity int) int
+		FlowTemplateUpdated   func(childComplexity int) int
+		FlowUpdated           func(childComplexity int) int
+		MessageLogAdded       func(childComplexity int, flowID int64) int
+		MessageLogUpdated     func(childComplexity int, flowID int64) int
+		ProviderCreated       func(childComplexity int) int
+		ProviderDeleted       func(childComplexity int) int
+		ProviderUpdated       func(childComplexity int) int
+		ScreenshotAdded       func(childComplexity int, flowID int64) int
+		SearchLogAdded        func(childComplexity int, flowID int64) int
+		SettingsUserUpdated   func(childComplexity int) int
+		TaskCreated           func(childComplexity int, flowID int64) int
+		TaskUpdated           func(childComplexity int, flowID int64) int
+		TerminalLogAdded      func(childComplexity int, flowID int64) int
+		ToolApprovalRequested func(childComplexity int, flowID int64) int
+		ToolApprovalUpdated   func(childComplexity int, flowID int64) int
+		VectorStoreLogAdded   func(childComplexity int, flowID int64) int
 	}
 
 	Subtask struct {
@@ -586,6 +594,21 @@ type ComplexityRoot struct {
 		Result    func(childComplexity int) int
 		Streaming func(childComplexity int) int
 		Type      func(childComplexity int) int
+	}
+
+	ToolApproval struct {
+		Args        func(childComplexity int) int
+		DecidedAt   func(childComplexity int) int
+		Decision    func(childComplexity int) int
+		EditedArgs  func(childComplexity int) int
+		FlowID      func(childComplexity int) int
+		ID          func(childComplexity int) int
+		Reason      func(childComplexity int) int
+		RequestedAt func(childComplexity int) int
+		RiskClass   func(childComplexity int) int
+		TaskID      func(childComplexity int) int
+		ToolCallID  func(childComplexity int) int
+		ToolName    func(childComplexity int) int
 	}
 
 	ToolcallsStats struct {
@@ -673,6 +696,10 @@ type MutationResolver interface {
 	CreateFlowTemplate(ctx context.Context, input model.CreateFlowTemplateInput) (*model.FlowTemplate, error)
 	UpdateFlowTemplate(ctx context.Context, templateID int64, input model.UpdateFlowTemplateInput) (*model.FlowTemplate, error)
 	DeleteFlowTemplate(ctx context.Context, templateID int64) (model.ResultType, error)
+	DecideToolApproval(ctx context.Context, approvalID int64, decision model.ApprovalDecision, editedArgs *string, reason *string) (*model.ToolApproval, error)
+	PauseFlow(ctx context.Context, flowID int64) (model.ResultType, error)
+	ResumeFlow(ctx context.Context, flowID int64) (model.ResultType, error)
+	InjectCommand(ctx context.Context, flowID int64, command string) (model.ResultType, error)
 }
 type QueryResolver interface {
 	Providers(ctx context.Context) ([]*model.Provider, error)
@@ -711,6 +738,8 @@ type QueryResolver interface {
 	APITokens(ctx context.Context) ([]*model.APIToken, error)
 	FlowTemplate(ctx context.Context, templateID int64) (*model.FlowTemplate, error)
 	FlowTemplates(ctx context.Context) ([]*model.FlowTemplate, error)
+	ToolApprovals(ctx context.Context, flowID int64) ([]*model.ToolApproval, error)
+	PendingToolApprovals(ctx context.Context, flowID int64) ([]*model.ToolApproval, error)
 }
 type SubscriptionResolver interface {
 	FlowCreated(ctx context.Context) (<-chan *model.Flow, error)
@@ -740,6 +769,8 @@ type SubscriptionResolver interface {
 	FlowTemplateCreated(ctx context.Context) (<-chan *model.FlowTemplate, error)
 	FlowTemplateUpdated(ctx context.Context) (<-chan *model.FlowTemplate, error)
 	FlowTemplateDeleted(ctx context.Context) (<-chan *model.FlowTemplate, error)
+	ToolApprovalRequested(ctx context.Context, flowID int64) (<-chan *model.ToolApproval, error)
+	ToolApprovalUpdated(ctx context.Context, flowID int64) (<-chan *model.ToolApproval, error)
 }
 
 type executableSchema struct {
@@ -2033,6 +2064,18 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Mutation.CreateProvider(childComplexity, args["name"].(string), args["type"].(model.ProviderType), args["agents"].(model.AgentsConfig)), true
 
+	case "Mutation.decideToolApproval":
+		if e.complexity.Mutation.DecideToolApproval == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_decideToolApproval_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.DecideToolApproval(childComplexity, args["approvalId"].(int64), args["decision"].(model.ApprovalDecision), args["editedArgs"].(*string), args["reason"].(*string)), true
+
 	case "Mutation.deleteAPIToken":
 		if e.complexity.Mutation.DeleteAPIToken == nil {
 			break
@@ -2129,6 +2172,30 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Mutation.FinishFlow(childComplexity, args["flowId"].(int64)), true
 
+	case "Mutation.injectCommand":
+		if e.complexity.Mutation.InjectCommand == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_injectCommand_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.InjectCommand(childComplexity, args["flowId"].(int64), args["command"].(string)), true
+
+	case "Mutation.pauseFlow":
+		if e.complexity.Mutation.PauseFlow == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_pauseFlow_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.PauseFlow(childComplexity, args["flowId"].(int64)), true
+
 	case "Mutation.putUserInput":
 		if e.complexity.Mutation.PutUserInput == nil {
 			break
@@ -2152,6 +2219,18 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Mutation.RenameFlow(childComplexity, args["flowId"].(int64), args["title"].(string)), true
+
+	case "Mutation.resumeFlow":
+		if e.complexity.Mutation.ResumeFlow == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_resumeFlow_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.ResumeFlow(childComplexity, args["flowId"].(int64)), true
 
 	case "Mutation.stopAssistant":
 		if e.complexity.Mutation.StopAssistant == nil {
@@ -2787,6 +2866,18 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Query.MessageLogs(childComplexity, args["flowId"].(int64)), true
 
+	case "Query.pendingToolApprovals":
+		if e.complexity.Query.PendingToolApprovals == nil {
+			break
+		}
+
+		args, err := ec.field_Query_pendingToolApprovals_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.PendingToolApprovals(childComplexity, args["flowId"].(int64)), true
+
 	case "Query.providers":
 		if e.complexity.Query.Providers == nil {
 			break
@@ -2869,6 +2960,18 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Query.TerminalLogs(childComplexity, args["flowId"].(int64)), true
+
+	case "Query.toolApprovals":
+		if e.complexity.Query.ToolApprovals == nil {
+			break
+		}
+
+		args, err := ec.field_Query_toolApprovals_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.ToolApprovals(childComplexity, args["flowId"].(int64)), true
 
 	case "Query.toolcallsStatsByFlow":
 		if e.complexity.Query.ToolcallsStatsByFlow == nil {
@@ -3404,6 +3507,30 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Subscription.TerminalLogAdded(childComplexity, args["flowId"].(int64)), true
 
+	case "Subscription.toolApprovalRequested":
+		if e.complexity.Subscription.ToolApprovalRequested == nil {
+			break
+		}
+
+		args, err := ec.field_Subscription_toolApprovalRequested_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Subscription.ToolApprovalRequested(childComplexity, args["flowId"].(int64)), true
+
+	case "Subscription.toolApprovalUpdated":
+		if e.complexity.Subscription.ToolApprovalUpdated == nil {
+			break
+		}
+
+		args, err := ec.field_Subscription_toolApprovalUpdated_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Subscription.ToolApprovalUpdated(childComplexity, args["flowId"].(int64)), true
+
 	case "Subscription.vectorStoreLogAdded":
 		if e.complexity.Subscription.VectorStoreLogAdded == nil {
 			break
@@ -3744,6 +3871,90 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.TestResult.Type(childComplexity), true
+
+	case "ToolApproval.args":
+		if e.complexity.ToolApproval.Args == nil {
+			break
+		}
+
+		return e.complexity.ToolApproval.Args(childComplexity), true
+
+	case "ToolApproval.decidedAt":
+		if e.complexity.ToolApproval.DecidedAt == nil {
+			break
+		}
+
+		return e.complexity.ToolApproval.DecidedAt(childComplexity), true
+
+	case "ToolApproval.decision":
+		if e.complexity.ToolApproval.Decision == nil {
+			break
+		}
+
+		return e.complexity.ToolApproval.Decision(childComplexity), true
+
+	case "ToolApproval.editedArgs":
+		if e.complexity.ToolApproval.EditedArgs == nil {
+			break
+		}
+
+		return e.complexity.ToolApproval.EditedArgs(childComplexity), true
+
+	case "ToolApproval.flowId":
+		if e.complexity.ToolApproval.FlowID == nil {
+			break
+		}
+
+		return e.complexity.ToolApproval.FlowID(childComplexity), true
+
+	case "ToolApproval.id":
+		if e.complexity.ToolApproval.ID == nil {
+			break
+		}
+
+		return e.complexity.ToolApproval.ID(childComplexity), true
+
+	case "ToolApproval.reason":
+		if e.complexity.ToolApproval.Reason == nil {
+			break
+		}
+
+		return e.complexity.ToolApproval.Reason(childComplexity), true
+
+	case "ToolApproval.requestedAt":
+		if e.complexity.ToolApproval.RequestedAt == nil {
+			break
+		}
+
+		return e.complexity.ToolApproval.RequestedAt(childComplexity), true
+
+	case "ToolApproval.riskClass":
+		if e.complexity.ToolApproval.RiskClass == nil {
+			break
+		}
+
+		return e.complexity.ToolApproval.RiskClass(childComplexity), true
+
+	case "ToolApproval.taskId":
+		if e.complexity.ToolApproval.TaskID == nil {
+			break
+		}
+
+		return e.complexity.ToolApproval.TaskID(childComplexity), true
+
+	case "ToolApproval.toolCallId":
+		if e.complexity.ToolApproval.ToolCallID == nil {
+			break
+		}
+
+		return e.complexity.ToolApproval.ToolCallID(childComplexity), true
+
+	case "ToolApproval.toolName":
+		if e.complexity.ToolApproval.ToolName == nil {
+			break
+		}
+
+		return e.complexity.ToolApproval.ToolName(childComplexity), true
 
 	case "ToolcallsStats.totalCount":
 		if e.complexity.ToolcallsStats.TotalCount == nil {
@@ -4686,6 +4897,119 @@ func (ec *executionContext) field_Mutation_createProvider_argsAgents(
 	return zeroVal, nil
 }
 
+func (ec *executionContext) field_Mutation_decideToolApproval_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	arg0, err := ec.field_Mutation_decideToolApproval_argsApprovalID(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["approvalId"] = arg0
+	arg1, err := ec.field_Mutation_decideToolApproval_argsDecision(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["decision"] = arg1
+	arg2, err := ec.field_Mutation_decideToolApproval_argsEditedArgs(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["editedArgs"] = arg2
+	arg3, err := ec.field_Mutation_decideToolApproval_argsReason(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["reason"] = arg3
+	return args, nil
+}
+func (ec *executionContext) field_Mutation_decideToolApproval_argsApprovalID(
+	ctx context.Context,
+	rawArgs map[string]interface{},
+) (int64, error) {
+	// We won't call the directive if the argument is null.
+	// Set call_argument_directives_with_null to true to call directives
+	// even if the argument is null.
+	_, ok := rawArgs["approvalId"]
+	if !ok {
+		var zeroVal int64
+		return zeroVal, nil
+	}
+
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("approvalId"))
+	if tmp, ok := rawArgs["approvalId"]; ok {
+		return ec.unmarshalNID2int64(ctx, tmp)
+	}
+
+	var zeroVal int64
+	return zeroVal, nil
+}
+
+func (ec *executionContext) field_Mutation_decideToolApproval_argsDecision(
+	ctx context.Context,
+	rawArgs map[string]interface{},
+) (model.ApprovalDecision, error) {
+	// We won't call the directive if the argument is null.
+	// Set call_argument_directives_with_null to true to call directives
+	// even if the argument is null.
+	_, ok := rawArgs["decision"]
+	if !ok {
+		var zeroVal model.ApprovalDecision
+		return zeroVal, nil
+	}
+
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("decision"))
+	if tmp, ok := rawArgs["decision"]; ok {
+		return ec.unmarshalNApprovalDecision2pentagiᚋpkgᚋgraphᚋmodelᚐApprovalDecision(ctx, tmp)
+	}
+
+	var zeroVal model.ApprovalDecision
+	return zeroVal, nil
+}
+
+func (ec *executionContext) field_Mutation_decideToolApproval_argsEditedArgs(
+	ctx context.Context,
+	rawArgs map[string]interface{},
+) (*string, error) {
+	// We won't call the directive if the argument is null.
+	// Set call_argument_directives_with_null to true to call directives
+	// even if the argument is null.
+	_, ok := rawArgs["editedArgs"]
+	if !ok {
+		var zeroVal *string
+		return zeroVal, nil
+	}
+
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("editedArgs"))
+	if tmp, ok := rawArgs["editedArgs"]; ok {
+		return ec.unmarshalOString2ᚖstring(ctx, tmp)
+	}
+
+	var zeroVal *string
+	return zeroVal, nil
+}
+
+func (ec *executionContext) field_Mutation_decideToolApproval_argsReason(
+	ctx context.Context,
+	rawArgs map[string]interface{},
+) (*string, error) {
+	// We won't call the directive if the argument is null.
+	// Set call_argument_directives_with_null to true to call directives
+	// even if the argument is null.
+	_, ok := rawArgs["reason"]
+	if !ok {
+		var zeroVal *string
+		return zeroVal, nil
+	}
+
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("reason"))
+	if tmp, ok := rawArgs["reason"]; ok {
+		return ec.unmarshalOString2ᚖstring(ctx, tmp)
+	}
+
+	var zeroVal *string
+	return zeroVal, nil
+}
+
 func (ec *executionContext) field_Mutation_deleteAPIToken_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
 	var err error
 	args := map[string]interface{}{}
@@ -4969,6 +5293,97 @@ func (ec *executionContext) field_Mutation_finishFlow_argsFlowID(
 	return zeroVal, nil
 }
 
+func (ec *executionContext) field_Mutation_injectCommand_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	arg0, err := ec.field_Mutation_injectCommand_argsFlowID(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["flowId"] = arg0
+	arg1, err := ec.field_Mutation_injectCommand_argsCommand(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["command"] = arg1
+	return args, nil
+}
+func (ec *executionContext) field_Mutation_injectCommand_argsFlowID(
+	ctx context.Context,
+	rawArgs map[string]interface{},
+) (int64, error) {
+	// We won't call the directive if the argument is null.
+	// Set call_argument_directives_with_null to true to call directives
+	// even if the argument is null.
+	_, ok := rawArgs["flowId"]
+	if !ok {
+		var zeroVal int64
+		return zeroVal, nil
+	}
+
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("flowId"))
+	if tmp, ok := rawArgs["flowId"]; ok {
+		return ec.unmarshalNID2int64(ctx, tmp)
+	}
+
+	var zeroVal int64
+	return zeroVal, nil
+}
+
+func (ec *executionContext) field_Mutation_injectCommand_argsCommand(
+	ctx context.Context,
+	rawArgs map[string]interface{},
+) (string, error) {
+	// We won't call the directive if the argument is null.
+	// Set call_argument_directives_with_null to true to call directives
+	// even if the argument is null.
+	_, ok := rawArgs["command"]
+	if !ok {
+		var zeroVal string
+		return zeroVal, nil
+	}
+
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("command"))
+	if tmp, ok := rawArgs["command"]; ok {
+		return ec.unmarshalNString2string(ctx, tmp)
+	}
+
+	var zeroVal string
+	return zeroVal, nil
+}
+
+func (ec *executionContext) field_Mutation_pauseFlow_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	arg0, err := ec.field_Mutation_pauseFlow_argsFlowID(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["flowId"] = arg0
+	return args, nil
+}
+func (ec *executionContext) field_Mutation_pauseFlow_argsFlowID(
+	ctx context.Context,
+	rawArgs map[string]interface{},
+) (int64, error) {
+	// We won't call the directive if the argument is null.
+	// Set call_argument_directives_with_null to true to call directives
+	// even if the argument is null.
+	_, ok := rawArgs["flowId"]
+	if !ok {
+		var zeroVal int64
+		return zeroVal, nil
+	}
+
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("flowId"))
+	if tmp, ok := rawArgs["flowId"]; ok {
+		return ec.unmarshalNID2int64(ctx, tmp)
+	}
+
+	var zeroVal int64
+	return zeroVal, nil
+}
+
 func (ec *executionContext) field_Mutation_putUserInput_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
 	var err error
 	args := map[string]interface{}{}
@@ -5111,6 +5526,38 @@ func (ec *executionContext) field_Mutation_renameFlow_argsTitle(
 	}
 
 	var zeroVal string
+	return zeroVal, nil
+}
+
+func (ec *executionContext) field_Mutation_resumeFlow_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	arg0, err := ec.field_Mutation_resumeFlow_argsFlowID(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["flowId"] = arg0
+	return args, nil
+}
+func (ec *executionContext) field_Mutation_resumeFlow_argsFlowID(
+	ctx context.Context,
+	rawArgs map[string]interface{},
+) (int64, error) {
+	// We won't call the directive if the argument is null.
+	// Set call_argument_directives_with_null to true to call directives
+	// even if the argument is null.
+	_, ok := rawArgs["flowId"]
+	if !ok {
+		var zeroVal int64
+		return zeroVal, nil
+	}
+
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("flowId"))
+	if tmp, ok := rawArgs["flowId"]; ok {
+		return ec.unmarshalNID2int64(ctx, tmp)
+	}
+
+	var zeroVal int64
 	return zeroVal, nil
 }
 
@@ -6051,6 +6498,38 @@ func (ec *executionContext) field_Query_messageLogs_argsFlowID(
 	return zeroVal, nil
 }
 
+func (ec *executionContext) field_Query_pendingToolApprovals_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	arg0, err := ec.field_Query_pendingToolApprovals_argsFlowID(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["flowId"] = arg0
+	return args, nil
+}
+func (ec *executionContext) field_Query_pendingToolApprovals_argsFlowID(
+	ctx context.Context,
+	rawArgs map[string]interface{},
+) (int64, error) {
+	// We won't call the directive if the argument is null.
+	// Set call_argument_directives_with_null to true to call directives
+	// even if the argument is null.
+	_, ok := rawArgs["flowId"]
+	if !ok {
+		var zeroVal int64
+		return zeroVal, nil
+	}
+
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("flowId"))
+	if tmp, ok := rawArgs["flowId"]; ok {
+		return ec.unmarshalNID2int64(ctx, tmp)
+	}
+
+	var zeroVal int64
+	return zeroVal, nil
+}
+
 func (ec *executionContext) field_Query_screenshots_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
 	var err error
 	args := map[string]interface{}{}
@@ -6158,6 +6637,38 @@ func (ec *executionContext) field_Query_terminalLogs_args(ctx context.Context, r
 	return args, nil
 }
 func (ec *executionContext) field_Query_terminalLogs_argsFlowID(
+	ctx context.Context,
+	rawArgs map[string]interface{},
+) (int64, error) {
+	// We won't call the directive if the argument is null.
+	// Set call_argument_directives_with_null to true to call directives
+	// even if the argument is null.
+	_, ok := rawArgs["flowId"]
+	if !ok {
+		var zeroVal int64
+		return zeroVal, nil
+	}
+
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("flowId"))
+	if tmp, ok := rawArgs["flowId"]; ok {
+		return ec.unmarshalNID2int64(ctx, tmp)
+	}
+
+	var zeroVal int64
+	return zeroVal, nil
+}
+
+func (ec *executionContext) field_Query_toolApprovals_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	arg0, err := ec.field_Query_toolApprovals_argsFlowID(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["flowId"] = arg0
+	return args, nil
+}
+func (ec *executionContext) field_Query_toolApprovals_argsFlowID(
 	ctx context.Context,
 	rawArgs map[string]interface{},
 ) (int64, error) {
@@ -6798,6 +7309,70 @@ func (ec *executionContext) field_Subscription_terminalLogAdded_args(ctx context
 	return args, nil
 }
 func (ec *executionContext) field_Subscription_terminalLogAdded_argsFlowID(
+	ctx context.Context,
+	rawArgs map[string]interface{},
+) (int64, error) {
+	// We won't call the directive if the argument is null.
+	// Set call_argument_directives_with_null to true to call directives
+	// even if the argument is null.
+	_, ok := rawArgs["flowId"]
+	if !ok {
+		var zeroVal int64
+		return zeroVal, nil
+	}
+
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("flowId"))
+	if tmp, ok := rawArgs["flowId"]; ok {
+		return ec.unmarshalNID2int64(ctx, tmp)
+	}
+
+	var zeroVal int64
+	return zeroVal, nil
+}
+
+func (ec *executionContext) field_Subscription_toolApprovalRequested_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	arg0, err := ec.field_Subscription_toolApprovalRequested_argsFlowID(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["flowId"] = arg0
+	return args, nil
+}
+func (ec *executionContext) field_Subscription_toolApprovalRequested_argsFlowID(
+	ctx context.Context,
+	rawArgs map[string]interface{},
+) (int64, error) {
+	// We won't call the directive if the argument is null.
+	// Set call_argument_directives_with_null to true to call directives
+	// even if the argument is null.
+	_, ok := rawArgs["flowId"]
+	if !ok {
+		var zeroVal int64
+		return zeroVal, nil
+	}
+
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("flowId"))
+	if tmp, ok := rawArgs["flowId"]; ok {
+		return ec.unmarshalNID2int64(ctx, tmp)
+	}
+
+	var zeroVal int64
+	return zeroVal, nil
+}
+
+func (ec *executionContext) field_Subscription_toolApprovalUpdated_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	arg0, err := ec.field_Subscription_toolApprovalUpdated_argsFlowID(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["flowId"] = arg0
+	return args, nil
+}
+func (ec *executionContext) field_Subscription_toolApprovalUpdated_argsFlowID(
 	ctx context.Context,
 	rawArgs map[string]interface{},
 ) (int64, error) {
@@ -16726,6 +17301,252 @@ func (ec *executionContext) fieldContext_Mutation_deleteFlowTemplate(ctx context
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_decideToolApproval(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Mutation_decideToolApproval(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Mutation().DecideToolApproval(rctx, fc.Args["approvalId"].(int64), fc.Args["decision"].(model.ApprovalDecision), fc.Args["editedArgs"].(*string), fc.Args["reason"].(*string))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(*model.ToolApproval)
+	fc.Result = res
+	return ec.marshalNToolApproval2ᚖpentagiᚋpkgᚋgraphᚋmodelᚐToolApproval(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Mutation_decideToolApproval(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_ToolApproval_id(ctx, field)
+			case "flowId":
+				return ec.fieldContext_ToolApproval_flowId(ctx, field)
+			case "taskId":
+				return ec.fieldContext_ToolApproval_taskId(ctx, field)
+			case "toolCallId":
+				return ec.fieldContext_ToolApproval_toolCallId(ctx, field)
+			case "toolName":
+				return ec.fieldContext_ToolApproval_toolName(ctx, field)
+			case "args":
+				return ec.fieldContext_ToolApproval_args(ctx, field)
+			case "riskClass":
+				return ec.fieldContext_ToolApproval_riskClass(ctx, field)
+			case "decision":
+				return ec.fieldContext_ToolApproval_decision(ctx, field)
+			case "editedArgs":
+				return ec.fieldContext_ToolApproval_editedArgs(ctx, field)
+			case "reason":
+				return ec.fieldContext_ToolApproval_reason(ctx, field)
+			case "requestedAt":
+				return ec.fieldContext_ToolApproval_requestedAt(ctx, field)
+			case "decidedAt":
+				return ec.fieldContext_ToolApproval_decidedAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type ToolApproval", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_decideToolApproval_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_pauseFlow(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Mutation_pauseFlow(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Mutation().PauseFlow(rctx, fc.Args["flowId"].(int64))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(model.ResultType)
+	fc.Result = res
+	return ec.marshalNResultType2pentagiᚋpkgᚋgraphᚋmodelᚐResultType(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Mutation_pauseFlow(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ResultType does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_pauseFlow_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_resumeFlow(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Mutation_resumeFlow(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Mutation().ResumeFlow(rctx, fc.Args["flowId"].(int64))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(model.ResultType)
+	fc.Result = res
+	return ec.marshalNResultType2pentagiᚋpkgᚋgraphᚋmodelᚐResultType(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Mutation_resumeFlow(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ResultType does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_resumeFlow_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_injectCommand(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Mutation_injectCommand(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Mutation().InjectCommand(rctx, fc.Args["flowId"].(int64), fc.Args["command"].(string))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(model.ResultType)
+	fc.Result = res
+	return ec.marshalNResultType2pentagiᚋpkgᚋgraphᚋmodelᚐResultType(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Mutation_injectCommand(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ResultType does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_injectCommand_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _PromptValidationResult_result(ctx context.Context, field graphql.CollectedField, obj *model.PromptValidationResult) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_PromptValidationResult_result(ctx, field)
 	if err != nil {
@@ -21614,6 +22435,168 @@ func (ec *executionContext) fieldContext_Query_flowTemplates(_ context.Context, 
 	return fc, nil
 }
 
+func (ec *executionContext) _Query_toolApprovals(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Query_toolApprovals(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Query().ToolApprovals(rctx, fc.Args["flowId"].(int64))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.([]*model.ToolApproval)
+	fc.Result = res
+	return ec.marshalNToolApproval2ᚕᚖpentagiᚋpkgᚋgraphᚋmodelᚐToolApprovalᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Query_toolApprovals(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_ToolApproval_id(ctx, field)
+			case "flowId":
+				return ec.fieldContext_ToolApproval_flowId(ctx, field)
+			case "taskId":
+				return ec.fieldContext_ToolApproval_taskId(ctx, field)
+			case "toolCallId":
+				return ec.fieldContext_ToolApproval_toolCallId(ctx, field)
+			case "toolName":
+				return ec.fieldContext_ToolApproval_toolName(ctx, field)
+			case "args":
+				return ec.fieldContext_ToolApproval_args(ctx, field)
+			case "riskClass":
+				return ec.fieldContext_ToolApproval_riskClass(ctx, field)
+			case "decision":
+				return ec.fieldContext_ToolApproval_decision(ctx, field)
+			case "editedArgs":
+				return ec.fieldContext_ToolApproval_editedArgs(ctx, field)
+			case "reason":
+				return ec.fieldContext_ToolApproval_reason(ctx, field)
+			case "requestedAt":
+				return ec.fieldContext_ToolApproval_requestedAt(ctx, field)
+			case "decidedAt":
+				return ec.fieldContext_ToolApproval_decidedAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type ToolApproval", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_toolApprovals_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_pendingToolApprovals(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Query_pendingToolApprovals(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Query().PendingToolApprovals(rctx, fc.Args["flowId"].(int64))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.([]*model.ToolApproval)
+	fc.Result = res
+	return ec.marshalNToolApproval2ᚕᚖpentagiᚋpkgᚋgraphᚋmodelᚐToolApprovalᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Query_pendingToolApprovals(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_ToolApproval_id(ctx, field)
+			case "flowId":
+				return ec.fieldContext_ToolApproval_flowId(ctx, field)
+			case "taskId":
+				return ec.fieldContext_ToolApproval_taskId(ctx, field)
+			case "toolCallId":
+				return ec.fieldContext_ToolApproval_toolCallId(ctx, field)
+			case "toolName":
+				return ec.fieldContext_ToolApproval_toolName(ctx, field)
+			case "args":
+				return ec.fieldContext_ToolApproval_args(ctx, field)
+			case "riskClass":
+				return ec.fieldContext_ToolApproval_riskClass(ctx, field)
+			case "decision":
+				return ec.fieldContext_ToolApproval_decision(ctx, field)
+			case "editedArgs":
+				return ec.fieldContext_ToolApproval_editedArgs(ctx, field)
+			case "reason":
+				return ec.fieldContext_ToolApproval_reason(ctx, field)
+			case "requestedAt":
+				return ec.fieldContext_ToolApproval_requestedAt(ctx, field)
+			case "decidedAt":
+				return ec.fieldContext_ToolApproval_decidedAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type ToolApproval", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_pendingToolApprovals_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query___type(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Query___type(ctx, field)
 	if err != nil {
@@ -24937,6 +25920,196 @@ func (ec *executionContext) fieldContext_Subscription_flowTemplateDeleted(_ cont
 	return fc, nil
 }
 
+func (ec *executionContext) _Subscription_toolApprovalRequested(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
+	fc, err := ec.fieldContext_Subscription_toolApprovalRequested(ctx, field)
+	if err != nil {
+		return nil
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = nil
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Subscription().ToolApprovalRequested(rctx, fc.Args["flowId"].(int64))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return nil
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return nil
+	}
+	return func(ctx context.Context) graphql.Marshaler {
+		select {
+		case res, ok := <-resTmp.(<-chan *model.ToolApproval):
+			if !ok {
+				return nil
+			}
+			return graphql.WriterFunc(func(w io.Writer) {
+				w.Write([]byte{'{'})
+				graphql.MarshalString(field.Alias).MarshalGQL(w)
+				w.Write([]byte{':'})
+				ec.marshalNToolApproval2ᚖpentagiᚋpkgᚋgraphᚋmodelᚐToolApproval(ctx, field.Selections, res).MarshalGQL(w)
+				w.Write([]byte{'}'})
+			})
+		case <-ctx.Done():
+			return nil
+		}
+	}
+}
+
+func (ec *executionContext) fieldContext_Subscription_toolApprovalRequested(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Subscription",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_ToolApproval_id(ctx, field)
+			case "flowId":
+				return ec.fieldContext_ToolApproval_flowId(ctx, field)
+			case "taskId":
+				return ec.fieldContext_ToolApproval_taskId(ctx, field)
+			case "toolCallId":
+				return ec.fieldContext_ToolApproval_toolCallId(ctx, field)
+			case "toolName":
+				return ec.fieldContext_ToolApproval_toolName(ctx, field)
+			case "args":
+				return ec.fieldContext_ToolApproval_args(ctx, field)
+			case "riskClass":
+				return ec.fieldContext_ToolApproval_riskClass(ctx, field)
+			case "decision":
+				return ec.fieldContext_ToolApproval_decision(ctx, field)
+			case "editedArgs":
+				return ec.fieldContext_ToolApproval_editedArgs(ctx, field)
+			case "reason":
+				return ec.fieldContext_ToolApproval_reason(ctx, field)
+			case "requestedAt":
+				return ec.fieldContext_ToolApproval_requestedAt(ctx, field)
+			case "decidedAt":
+				return ec.fieldContext_ToolApproval_decidedAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type ToolApproval", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Subscription_toolApprovalRequested_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Subscription_toolApprovalUpdated(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
+	fc, err := ec.fieldContext_Subscription_toolApprovalUpdated(ctx, field)
+	if err != nil {
+		return nil
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = nil
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Subscription().ToolApprovalUpdated(rctx, fc.Args["flowId"].(int64))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return nil
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return nil
+	}
+	return func(ctx context.Context) graphql.Marshaler {
+		select {
+		case res, ok := <-resTmp.(<-chan *model.ToolApproval):
+			if !ok {
+				return nil
+			}
+			return graphql.WriterFunc(func(w io.Writer) {
+				w.Write([]byte{'{'})
+				graphql.MarshalString(field.Alias).MarshalGQL(w)
+				w.Write([]byte{':'})
+				ec.marshalNToolApproval2ᚖpentagiᚋpkgᚋgraphᚋmodelᚐToolApproval(ctx, field.Selections, res).MarshalGQL(w)
+				w.Write([]byte{'}'})
+			})
+		case <-ctx.Done():
+			return nil
+		}
+	}
+}
+
+func (ec *executionContext) fieldContext_Subscription_toolApprovalUpdated(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Subscription",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_ToolApproval_id(ctx, field)
+			case "flowId":
+				return ec.fieldContext_ToolApproval_flowId(ctx, field)
+			case "taskId":
+				return ec.fieldContext_ToolApproval_taskId(ctx, field)
+			case "toolCallId":
+				return ec.fieldContext_ToolApproval_toolCallId(ctx, field)
+			case "toolName":
+				return ec.fieldContext_ToolApproval_toolName(ctx, field)
+			case "args":
+				return ec.fieldContext_ToolApproval_args(ctx, field)
+			case "riskClass":
+				return ec.fieldContext_ToolApproval_riskClass(ctx, field)
+			case "decision":
+				return ec.fieldContext_ToolApproval_decision(ctx, field)
+			case "editedArgs":
+				return ec.fieldContext_ToolApproval_editedArgs(ctx, field)
+			case "reason":
+				return ec.fieldContext_ToolApproval_reason(ctx, field)
+			case "requestedAt":
+				return ec.fieldContext_ToolApproval_requestedAt(ctx, field)
+			case "decidedAt":
+				return ec.fieldContext_ToolApproval_decidedAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type ToolApproval", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Subscription_toolApprovalUpdated_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Subtask_id(ctx context.Context, field graphql.CollectedField, obj *model.Subtask) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Subtask_id(ctx, field)
 	if err != nil {
@@ -27013,6 +28186,522 @@ func (ec *executionContext) fieldContext_TestResult_error(_ context.Context, fie
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ToolApproval_id(ctx context.Context, field graphql.CollectedField, obj *model.ToolApproval) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_ToolApproval_id(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ID, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(int64)
+	fc.Result = res
+	return ec.marshalNID2int64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_ToolApproval_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ToolApproval",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ToolApproval_flowId(ctx context.Context, field graphql.CollectedField, obj *model.ToolApproval) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_ToolApproval_flowId(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.FlowID, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(int64)
+	fc.Result = res
+	return ec.marshalNID2int64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_ToolApproval_flowId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ToolApproval",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ToolApproval_taskId(ctx context.Context, field graphql.CollectedField, obj *model.ToolApproval) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_ToolApproval_taskId(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.TaskID, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*int64)
+	fc.Result = res
+	return ec.marshalOID2ᚖint64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_ToolApproval_taskId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ToolApproval",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ToolApproval_toolCallId(ctx context.Context, field graphql.CollectedField, obj *model.ToolApproval) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_ToolApproval_toolCallId(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ToolCallID, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_ToolApproval_toolCallId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ToolApproval",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ToolApproval_toolName(ctx context.Context, field graphql.CollectedField, obj *model.ToolApproval) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_ToolApproval_toolName(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ToolName, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_ToolApproval_toolName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ToolApproval",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ToolApproval_args(ctx context.Context, field graphql.CollectedField, obj *model.ToolApproval) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_ToolApproval_args(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Args, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_ToolApproval_args(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ToolApproval",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ToolApproval_riskClass(ctx context.Context, field graphql.CollectedField, obj *model.ToolApproval) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_ToolApproval_riskClass(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.RiskClass, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(model.RiskClass)
+	fc.Result = res
+	return ec.marshalNRiskClass2pentagiᚋpkgᚋgraphᚋmodelᚐRiskClass(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_ToolApproval_riskClass(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ToolApproval",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type RiskClass does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ToolApproval_decision(ctx context.Context, field graphql.CollectedField, obj *model.ToolApproval) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_ToolApproval_decision(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Decision, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_ToolApproval_decision(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ToolApproval",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ToolApproval_editedArgs(ctx context.Context, field graphql.CollectedField, obj *model.ToolApproval) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_ToolApproval_editedArgs(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.EditedArgs, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*string)
+	fc.Result = res
+	return ec.marshalOString2ᚖstring(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_ToolApproval_editedArgs(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ToolApproval",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ToolApproval_reason(ctx context.Context, field graphql.CollectedField, obj *model.ToolApproval) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_ToolApproval_reason(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Reason, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*string)
+	fc.Result = res
+	return ec.marshalOString2ᚖstring(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_ToolApproval_reason(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ToolApproval",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ToolApproval_requestedAt(ctx context.Context, field graphql.CollectedField, obj *model.ToolApproval) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_ToolApproval_requestedAt(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.RequestedAt, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(time.Time)
+	fc.Result = res
+	return ec.marshalNTime2timeᚐTime(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_ToolApproval_requestedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ToolApproval",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Time does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ToolApproval_decidedAt(ctx context.Context, field graphql.CollectedField, obj *model.ToolApproval) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_ToolApproval_decidedAt(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.DecidedAt, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*time.Time)
+	fc.Result = res
+	return ec.marshalOTime2ᚖtimeᚐTime(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_ToolApproval_decidedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ToolApproval",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Time does not have child fields")
 		},
 	}
 	return fc, nil
@@ -32932,6 +34621,34 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "decideToolApproval":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_decideToolApproval(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "pauseFlow":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_pauseFlow(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "resumeFlow":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_resumeFlow(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "injectCommand":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_injectCommand(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -34267,6 +35984,50 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "toolApprovals":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_toolApprovals(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "pendingToolApprovals":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_pendingToolApprovals(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "__type":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Query___type(ctx, field)
@@ -34598,6 +36359,10 @@ func (ec *executionContext) _Subscription(ctx context.Context, sel ast.Selection
 		return ec._Subscription_flowTemplateUpdated(ctx, fields[0])
 	case "flowTemplateDeleted":
 		return ec._Subscription_flowTemplateDeleted(ctx, fields[0])
+	case "toolApprovalRequested":
+		return ec._Subscription_toolApprovalRequested(ctx, fields[0])
+	case "toolApprovalUpdated":
+		return ec._Subscription_toolApprovalUpdated(ctx, fields[0])
 	default:
 		panic("unknown field " + strconv.Quote(fields[0].Name))
 	}
@@ -35038,6 +36803,88 @@ func (ec *executionContext) _TestResult(ctx context.Context, sel ast.SelectionSe
 			out.Values[i] = ec._TestResult_latency(ctx, field, obj)
 		case "error":
 			out.Values[i] = ec._TestResult_error(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var toolApprovalImplementors = []string{"ToolApproval"}
+
+func (ec *executionContext) _ToolApproval(ctx context.Context, sel ast.SelectionSet, obj *model.ToolApproval) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, toolApprovalImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ToolApproval")
+		case "id":
+			out.Values[i] = ec._ToolApproval_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "flowId":
+			out.Values[i] = ec._ToolApproval_flowId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "taskId":
+			out.Values[i] = ec._ToolApproval_taskId(ctx, field, obj)
+		case "toolCallId":
+			out.Values[i] = ec._ToolApproval_toolCallId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "toolName":
+			out.Values[i] = ec._ToolApproval_toolName(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "args":
+			out.Values[i] = ec._ToolApproval_args(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "riskClass":
+			out.Values[i] = ec._ToolApproval_riskClass(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "decision":
+			out.Values[i] = ec._ToolApproval_decision(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "editedArgs":
+			out.Values[i] = ec._ToolApproval_editedArgs(ctx, field, obj)
+		case "reason":
+			out.Values[i] = ec._ToolApproval_reason(ctx, field, obj)
+		case "requestedAt":
+			out.Values[i] = ec._ToolApproval_requestedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "decidedAt":
+			out.Values[i] = ec._ToolApproval_decidedAt(ctx, field, obj)
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -36014,6 +37861,16 @@ func (ec *executionContext) marshalNAgentsPrompts2ᚖpentagiᚋpkgᚋgraphᚋmod
 	return ec._AgentsPrompts(ctx, sel, v)
 }
 
+func (ec *executionContext) unmarshalNApprovalDecision2pentagiᚋpkgᚋgraphᚋmodelᚐApprovalDecision(ctx context.Context, v interface{}) (model.ApprovalDecision, error) {
+	var res model.ApprovalDecision
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNApprovalDecision2pentagiᚋpkgᚋgraphᚋmodelᚐApprovalDecision(ctx context.Context, sel ast.SelectionSet, v model.ApprovalDecision) graphql.Marshaler {
+	return v
+}
+
 func (ec *executionContext) marshalNAssistant2pentagiᚋpkgᚋgraphᚋmodelᚐAssistant(ctx context.Context, sel ast.SelectionSet, v model.Assistant) graphql.Marshaler {
 	return ec._Assistant(ctx, sel, &v)
 }
@@ -36928,6 +38785,16 @@ func (ec *executionContext) marshalNResultType2pentagiᚋpkgᚋgraphᚋmodelᚐR
 	return v
 }
 
+func (ec *executionContext) unmarshalNRiskClass2pentagiᚋpkgᚋgraphᚋmodelᚐRiskClass(ctx context.Context, v interface{}) (model.RiskClass, error) {
+	var res model.RiskClass
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNRiskClass2pentagiᚋpkgᚋgraphᚋmodelᚐRiskClass(ctx context.Context, sel ast.SelectionSet, v model.RiskClass) graphql.Marshaler {
+	return v
+}
+
 func (ec *executionContext) marshalNScreenshot2pentagiᚋpkgᚋgraphᚋmodelᚐScreenshot(ctx context.Context, sel ast.SelectionSet, v model.Screenshot) graphql.Marshaler {
 	return ec._Screenshot(ctx, sel, &v)
 }
@@ -37280,6 +39147,64 @@ func (ec *executionContext) unmarshalNTokenStatus2pentagiᚋpkgᚋgraphᚋmodel�
 
 func (ec *executionContext) marshalNTokenStatus2pentagiᚋpkgᚋgraphᚋmodelᚐTokenStatus(ctx context.Context, sel ast.SelectionSet, v model.TokenStatus) graphql.Marshaler {
 	return v
+}
+
+func (ec *executionContext) marshalNToolApproval2pentagiᚋpkgᚋgraphᚋmodelᚐToolApproval(ctx context.Context, sel ast.SelectionSet, v model.ToolApproval) graphql.Marshaler {
+	return ec._ToolApproval(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNToolApproval2ᚕᚖpentagiᚋpkgᚋgraphᚋmodelᚐToolApprovalᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.ToolApproval) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNToolApproval2ᚖpentagiᚋpkgᚋgraphᚋmodelᚐToolApproval(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNToolApproval2ᚖpentagiᚋpkgᚋgraphᚋmodelᚐToolApproval(ctx context.Context, sel ast.SelectionSet, v *model.ToolApproval) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._ToolApproval(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNToolcallsStats2pentagiᚋpkgᚋgraphᚋmodelᚐToolcallsStats(ctx context.Context, sel ast.SelectionSet, v model.ToolcallsStats) graphql.Marshaler {

@@ -58,6 +58,8 @@ type FlowSubscriber interface {
 	FlowTemplateCreated(ctx context.Context) (<-chan *model.FlowTemplate, error)
 	FlowTemplateUpdated(ctx context.Context) (<-chan *model.FlowTemplate, error)
 	FlowTemplateDeleted(ctx context.Context) (<-chan *model.FlowTemplate, error)
+	ToolApprovalRequested(ctx context.Context) (<-chan *model.ToolApproval, error)
+	ToolApprovalUpdated(ctx context.Context) (<-chan *model.ToolApproval, error)
 	FlowContext
 }
 
@@ -89,6 +91,8 @@ type FlowPublisher interface {
 	FlowTemplateCreated(ctx context.Context, template database.FlowTemplate)
 	FlowTemplateUpdated(ctx context.Context, template database.FlowTemplate)
 	FlowTemplateDeleted(ctx context.Context, template database.FlowTemplate)
+	ToolApprovalRequested(ctx context.Context, approval *model.ToolApproval)
+	ToolApprovalUpdated(ctx context.Context, approval *model.ToolApproval)
 	FlowContext
 }
 
@@ -120,9 +124,11 @@ type controller struct {
 	apiTokenUpdated     Channel[*model.APIToken]
 	apiTokenDeleted     Channel[*model.APIToken]
 	settingsUserUpdated Channel[*model.UserPreferences]
-	flowTemplateCreated Channel[*model.FlowTemplate]
-	flowTemplateUpdated Channel[*model.FlowTemplate]
-	flowTemplateDeleted Channel[*model.FlowTemplate]
+	flowTemplateCreated       Channel[*model.FlowTemplate]
+	flowTemplateUpdated       Channel[*model.FlowTemplate]
+	flowTemplateDeleted       Channel[*model.FlowTemplate]
+	toolApprovalRequested     Channel[*model.ToolApproval]
+	toolApprovalUpdated       Channel[*model.ToolApproval]
 }
 
 func NewSubscriptionsController() SubscriptionsController {
@@ -154,9 +160,11 @@ func NewSubscriptionsController() SubscriptionsController {
 		apiTokenUpdated:     NewChannel[*model.APIToken](),
 		apiTokenDeleted:     NewChannel[*model.APIToken](),
 		settingsUserUpdated: NewChannel[*model.UserPreferences](),
-		flowTemplateCreated: NewChannel[*model.FlowTemplate](),
-		flowTemplateUpdated: NewChannel[*model.FlowTemplate](),
-		flowTemplateDeleted: NewChannel[*model.FlowTemplate](),
+		flowTemplateCreated:   NewChannel[*model.FlowTemplate](),
+		flowTemplateUpdated:   NewChannel[*model.FlowTemplate](),
+		flowTemplateDeleted:   NewChannel[*model.FlowTemplate](),
+		toolApprovalRequested: NewChannel[*model.ToolApproval](),
+		toolApprovalUpdated:   NewChannel[*model.ToolApproval](),
 	}
 }
 

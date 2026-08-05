@@ -5,9 +5,13 @@
 !.env.example
 !backend/cmd/installer/files/links/.env
 
+# Local scripts
+init-litellm-db.sh
+litellm-config.yaml
+examples/*
+
 backend/tmp
 backend/build
-
 frontend/coverage
 frontend/dist
 frontend/node_modules

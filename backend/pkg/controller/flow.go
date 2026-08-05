@@ -13,7 +13,9 @@ import (
 	"pentagi/pkg/config"
 	"pentagi/pkg/database"
 	"pentagi/pkg/docker"
+	execbackend "pentagi/pkg/executor"
 	"pentagi/pkg/graph/subscriptions"
+	"pentagi/pkg/hitl"
 	obs "pentagi/pkg/observability"
 	"pentagi/pkg/observability/langfuse"
 	"pentagi/pkg/providers"
@@ -77,6 +79,7 @@ type flowWorkerCtx struct {
 	docker docker.DockerClient
 	provs  providers.ProviderController
 	subs   subscriptions.SubscriptionsController
+	hitl   *hitl.Dispatcher
 
 	flowProviderControllers
 }
@@ -167,7 +170,7 @@ func NewFlowWorker(
 	ctx, _ = flowSpan.Observation(ctx)
 
 	prompter := templates.NewDefaultPrompter() // TODO: change to flow prompter by userID from DB
-	executor, err := tools.NewFlowToolsExecutor(fwc.db, fwc.cfg, fwc.docker, fwc.functions, flow.ID)
+	executor, err := tools.NewFlowToolsExecutor(fwc.db, fwc.cfg, fwc.docker, execbackend.NewDockerBackend(fwc.docker), fwc.functions, flow.ID)
 	if err != nil {
 		return nil, wrapErrorEndSpan(ctx, flowSpan, "failed to create flow tools executor", err)
 	}
@@ -204,6 +207,19 @@ func NewFlowWorker(
 
 	flowProvider.SetAgentLogProvider(workers.alw)
 	flowProvider.SetMsgLogProvider(workers.mlw)
+
+	// Wire HITL gate if dispatcher is available
+	if fwc.hitl != nil {
+		hitlCfg := hitl.ParseConfig(functionsBlob)
+		if hitlCfg.Mode != hitl.ModePolicyOnly {
+			gate := &hitl.FlowGate{
+				FlowID:     flow.ID,
+				Config:     hitlCfg,
+				Dispatcher: fwc.hitl,
+			}
+			flowProvider.SetHITLGate(gate)
+		}
+	}
 
 	executor.SetImage(flowProvider.Image())
 	executor.SetEmbedder(flowProvider.Embedder())
@@ -333,7 +349,7 @@ func LoadFlowWorker(ctx context.Context, flow database.Flow, fwc flowWorkerCtx) 
 	}
 
 	prompter := templates.NewDefaultPrompter() // TODO: change to flow prompter by userID from DB
-	executor, err := tools.NewFlowToolsExecutor(fwc.db, fwc.cfg, fwc.docker, functions, flow.ID)
+	executor, err := tools.NewFlowToolsExecutor(fwc.db, fwc.cfg, fwc.docker, execbackend.NewDockerBackend(fwc.docker), functions, flow.ID)
 	if err != nil {
 		return nil, wrapErrorEndSpan(ctx, flowSpan, "failed to create flow tools executor", err)
 	}
@@ -354,6 +370,19 @@ func LoadFlowWorker(ctx context.Context, flow database.Flow, fwc flowWorkerCtx) 
 
 	flowProvider.SetAgentLogProvider(workers.alw)
 	flowProvider.SetMsgLogProvider(workers.mlw)
+
+	// Wire HITL gate if dispatcher is available
+	if fwc.hitl != nil {
+		hitlCfg := hitl.ParseConfig(flow.Functions)
+		if hitlCfg.Mode != hitl.ModePolicyOnly {
+			gate := &hitl.FlowGate{
+				FlowID:     flow.ID,
+				Config:     hitlCfg,
+				Dispatcher: fwc.hitl,
+			}
+			flowProvider.SetHITLGate(gate)
+		}
+	}
 
 	executor.SetImage(flowProvider.Image())
 	executor.SetEmbedder(flowProvider.Embedder())

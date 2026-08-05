@@ -13,6 +13,7 @@ import (
 	"pentagi/pkg/csum"
 	"pentagi/pkg/database"
 	"pentagi/pkg/graphiti"
+	"pentagi/pkg/hitl"
 	obs "pentagi/pkg/observability"
 	"pentagi/pkg/observability/langfuse"
 	"pentagi/pkg/providers/pconfig"
@@ -330,6 +331,30 @@ func (fp *flowProvider) execToolCall(
 		err      error
 		response string
 	)
+
+	// HITL gate: check if this tool call requires human approval
+	if fp.hitlGate != nil {
+		approvalReq := &hitl.ApprovalRequest{
+			ToolCallID: toolCall.ID,
+			ToolName:   funcName,
+			Args:       funcArgs,
+		}
+		resp, hitlErr := fp.hitlGate.Evaluate(ctx, approvalReq)
+		if hitlErr != nil {
+			if errors.Is(hitlErr, hitl.ErrApprovalDenied) || errors.Is(hitlErr, hitl.ErrApprovalTimeout) || errors.Is(hitlErr, hitl.ErrFlowPaused) {
+				// Return denial as tool result so the LLM can re-plan
+				denialMsg := fmt.Sprintf("[BLOCKED BY OPERATOR] Tool call '%s' was denied: %v", funcName, hitlErr)
+				logger.Warn(denialMsg)
+				return denialMsg, nil
+			}
+			return "", hitlErr
+		}
+		// If the operator edited the args, use the edited version
+		if resp != nil && resp.Decision == hitl.DecisionEdited && len(resp.EditedArgs) > 0 {
+			funcArgs = resp.EditedArgs
+			logger.WithField("edited_args", string(funcArgs)).Info("tool call args edited by operator")
+		}
+	}
 
 	for idx := 0; idx <= maxRetriesToCallFunction; idx++ {
 		if idx == maxRetriesToCallFunction {

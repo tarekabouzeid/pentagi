@@ -147,3 +147,11 @@ func (s *flowSubscriber) FlowTemplateUpdated(ctx context.Context) (<-chan *model
 func (s *flowSubscriber) FlowTemplateDeleted(ctx context.Context) (<-chan *model.FlowTemplate, error) {
 	return s.ctrl.flowTemplateDeleted.Subscribe(ctx, s.userID), nil
 }
+
+func (s *flowSubscriber) ToolApprovalRequested(ctx context.Context) (<-chan *model.ToolApproval, error) {
+	return s.ctrl.toolApprovalRequested.Subscribe(ctx, s.flowID), nil
+}
+
+func (s *flowSubscriber) ToolApprovalUpdated(ctx context.Context) (<-chan *model.ToolApproval, error) {
+	return s.ctrl.toolApprovalUpdated.Subscribe(ctx, s.flowID), nil
+}

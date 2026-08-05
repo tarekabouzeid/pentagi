@@ -19,6 +19,7 @@ import (
 	"pentagi/pkg/database"
 	"pentagi/pkg/docker"
 	"pentagi/pkg/graph/subscriptions"
+	"pentagi/pkg/hitl"
 	obs "pentagi/pkg/observability"
 	"pentagi/pkg/providers"
 	router "pentagi/pkg/server"
@@ -113,13 +114,19 @@ func main() {
 		log.Fatalf("LLM provider controller initialization failed: %v", err)
 	}
 	subscriptions := subscriptions.NewSubscriptionsController()
-	controller := controller.NewFlowController(queries, cfg, client, providers, subscriptions)
+
+	// Initialize HITL (Human-In-The-Loop) dispatcher
+	hitlStore := hitl.NewDBStore(queries)
+	hitlPub := hitl.NewSubscriptionPublisher(subscriptions)
+	hitlDispatcher := hitl.NewDispatcher(hitlStore, hitlPub)
+
+	controller := controller.NewFlowController(queries, cfg, client, providers, subscriptions, hitlDispatcher)
 
 	if err := controller.LoadFlows(ctx); err != nil {
 		log.Fatalf("Active flows restoration failed: %v", err)
 	}
 
-	r := router.NewRouter(queries, orm, cfg, providers, controller, subscriptions)
+	r := router.NewRouter(queries, orm, cfg, providers, controller, subscriptions, hitlDispatcher)
 
 	// Launch HTTP/HTTPS server in background goroutine
 	serverErrChan := make(chan error, 1)

@@ -11,6 +11,7 @@ import (
 	"pentagi/pkg/database"
 	"pentagi/pkg/docker"
 	"pentagi/pkg/graph/subscriptions"
+	"pentagi/pkg/hitl"
 	"pentagi/pkg/providers"
 	"pentagi/pkg/providers/provider"
 	"pentagi/pkg/tools"
@@ -58,6 +59,7 @@ type flowController struct {
 	docker docker.DockerClient
 	provs  providers.ProviderController
 	subs   subscriptions.SubscriptionsController
+	hitl   *hitl.Dispatcher
 	alc    AgentLogController
 	mlc    MsgLogController
 	aslc   AssistantLogController
@@ -73,6 +75,7 @@ func NewFlowController(
 	docker docker.DockerClient,
 	provs providers.ProviderController,
 	subs subscriptions.SubscriptionsController,
+	hitlDispatcher *hitl.Dispatcher,
 ) FlowController {
 	return &flowController{
 		db:     db,
@@ -82,6 +85,7 @@ func NewFlowController(
 		docker: docker,
 		provs:  provs,
 		subs:   subs,
+		hitl:   hitlDispatcher,
 		alc:    NewAgentLogController(db),
 		mlc:    NewMsgLogController(db),
 		aslc:   NewAssistantLogController(db),
@@ -105,6 +109,7 @@ func (fc *flowController) LoadFlows(ctx context.Context) error {
 			docker: fc.docker,
 			provs:  fc.provs,
 			subs:   fc.subs,
+			hitl:   fc.hitl,
 			flowProviderControllers: flowProviderControllers{
 				mlc:  fc.mlc,
 				aslc: fc.aslc,
@@ -153,6 +158,7 @@ func (fc *flowController) CreateFlow(
 			docker: fc.docker,
 			provs:  fc.provs,
 			subs:   fc.subs,
+			hitl:   fc.hitl,
 			flowProviderControllers: flowProviderControllers{
 				mlc:  fc.mlc,
 				aslc: fc.aslc,
@@ -198,6 +204,7 @@ func (fc *flowController) CreateAssistant(
 		docker: fc.docker,
 		provs:  fc.provs,
 		subs:   fc.subs,
+		hitl:   fc.hitl,
 		flowProviderControllers: flowProviderControllers{
 			mlc:  fc.mlc,
 			aslc: fc.aslc,

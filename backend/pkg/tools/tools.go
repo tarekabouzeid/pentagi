@@ -8,6 +8,7 @@ import (
 	"pentagi/pkg/config"
 	"pentagi/pkg/database"
 	"pentagi/pkg/docker"
+	"pentagi/pkg/executor"
 	"pentagi/pkg/graphiti"
 	"pentagi/pkg/providers/embeddings"
 	"pentagi/pkg/schema"
@@ -146,6 +147,7 @@ type flowToolsExecutor struct {
 	graphitiClient *graphiti.Client
 	image          string
 	docker         docker.DockerClient
+	backend        executor.Backend
 	primaryID      int64
 	primaryLID     string
 	functions      *Functions
@@ -307,6 +309,7 @@ func NewFlowToolsExecutor(
 	db database.Querier,
 	cfg *config.Config,
 	docker docker.DockerClient,
+	backend executor.Backend,
 	functions *Functions,
 	flowID int64,
 ) (FlowToolsExecutor, error) {
@@ -326,6 +329,7 @@ func NewFlowToolsExecutor(
 	return &flowToolsExecutor{
 		db:          db,
 		docker:      docker,
+		backend:     backend,
 		functions:   functions,
 		replacer:    replacer,
 		cfg:         cfg,
@@ -526,7 +530,7 @@ func (fte *flowToolsExecutor) GetAssistantExecutor(cfg AssistantExecutorConfig) 
 		fte.flowID, nil, nil,
 		container.ID,
 		container.LocalID.String,
-		fte.docker,
+		fte.backend,
 		fte.tlp,
 	)
 
@@ -797,7 +801,7 @@ func (fte *flowToolsExecutor) GetInstallerExecutor(cfg InstallerExecutorConfig) 
 		cfg.SubtaskID,
 		container.ID,
 		container.LocalID.String,
-		fte.docker,
+		fte.backend,
 		fte.tlp,
 	)
 
@@ -991,7 +995,7 @@ func (fte *flowToolsExecutor) GetPentesterExecutor(cfg PentesterExecutorConfig) 
 		cfg.SubtaskID,
 		container.ID,
 		container.LocalID.String,
-		fte.docker,
+		fte.backend,
 		fte.tlp,
 	)
 
@@ -1254,7 +1258,7 @@ func (fte *flowToolsExecutor) GetGeneratorExecutor(cfg GeneratorExecutorConfig) 
 		nil,
 		container.ID,
 		container.LocalID.String,
-		fte.docker,
+		fte.backend,
 		fte.tlp,
 	)
 
@@ -1319,7 +1323,7 @@ func (fte *flowToolsExecutor) GetRefinerExecutor(cfg RefinerExecutorConfig) (Con
 		nil,
 		container.ID,
 		container.LocalID.String,
-		fte.docker,
+		fte.backend,
 		fte.tlp,
 	)
 
@@ -1380,7 +1384,7 @@ func (fte *flowToolsExecutor) GetMemoristExecutor(cfg MemoristExecutorConfig) (C
 		cfg.SubtaskID,
 		container.ID,
 		container.LocalID.String,
-		fte.docker,
+		fte.backend,
 		fte.tlp,
 	)
 
@@ -1448,7 +1452,7 @@ func (fte *flowToolsExecutor) GetEnricherExecutor(cfg EnricherExecutorConfig) (C
 		cfg.SubtaskID,
 		container.ID,
 		container.LocalID.String,
-		fte.docker,
+		fte.backend,
 		fte.tlp,
 	)
 
