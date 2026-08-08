@@ -33,7 +33,7 @@ func TestClassifyTerminalRisk(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			args, _ := json.Marshal(TerminalArgs{Command: tt.command, Detach: tt.detach})
+			args, _ := json.Marshal(TerminalArgs{Input: tt.command, Detach: tt.detach})
 			got := ClassifyRisk("terminal", args)
 			if got != tt.expected {
 				t.Errorf("ClassifyRisk(terminal, %q) = %s, want %s", tt.command, got, tt.expected)
@@ -49,17 +49,17 @@ func TestClassifyFileRisk(t *testing.T) {
 		action   string
 		expected RiskClass
 	}{
-		{"read file", "/tmp/results.txt", "read", RiskLow},
-		{"write tmp", "/tmp/output.txt", "write", RiskMedium},
-		{"write etc", "/etc/passwd", "write", RiskHigh},
-		{"write ssh key", "/root/.ssh/authorized_keys", "write", RiskHigh},
-		{"write env", "/app/.env", "write", RiskHigh},
-		{"read proc", "/proc/self/maps", "read", RiskLow},
+		{"read file", "/tmp/results.txt", "read_file", RiskLow},
+		{"write tmp", "/tmp/output.txt", "update_file", RiskMedium},
+		{"write etc", "/etc/passwd", "update_file", RiskHigh},
+		{"write ssh key", "/root/.ssh/authorized_keys", "update_file", RiskHigh},
+		{"write env", "/app/.env", "update_file", RiskHigh},
+		{"read proc", "/proc/self/maps", "read_file", RiskLow},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			args, _ := json.Marshal(FileArgs{Filepath: tt.filepath, Action: tt.action})
+			args, _ := json.Marshal(FileArgs{Path: tt.filepath, Action: tt.action})
 			got := ClassifyRisk("file", args)
 			if got != tt.expected {
 				t.Errorf("ClassifyRisk(file, %+v) = %s, want %s", tt.name, got, tt.expected)

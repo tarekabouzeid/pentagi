@@ -57,16 +57,18 @@ var reconTools = []string{
 }
 
 // TerminalArgs represents the expected JSON structure for terminal tool calls.
+// Field names must match tools.TerminalAction (backend/pkg/tools/args.go).
 type TerminalArgs struct {
-	Command string `json:"command"`
-	Detach  bool   `json:"detach"`
+	Input  string `json:"input"`
+	Detach bool   `json:"detach"`
 }
 
 // FileArgs represents the expected JSON structure for file tool calls.
+// Field names must match tools.FileAction (backend/pkg/tools/args.go).
 type FileArgs struct {
-	Filepath string `json:"filepath"`
-	Content  string `json:"content"`
-	Action   string `json:"action"` // "read" or "write"
+	Path    string `json:"path"`
+	Content string `json:"content"`
+	Action  string `json:"action"` // "read_file" or "update_file"
 }
 
 // ClassifyRisk assesses the risk level of a tool call based on the tool name and arguments.
@@ -89,7 +91,7 @@ func classifyTerminalRisk(args json.RawMessage) RiskClass {
 		return RiskHigh // can't parse = assume high risk
 	}
 
-	cmd := strings.ToLower(ta.Command)
+	cmd := strings.ToLower(ta.Input)
 
 	// Check for blocked/dangerous commands
 	for _, pattern := range dangerousCommands {
@@ -133,12 +135,12 @@ func classifyFileRisk(args json.RawMessage) RiskClass {
 	}
 
 	// Read operations are low risk
-	if fa.Action == "read" {
+	if fa.Action == "read_file" {
 		return RiskLow
 	}
 
 	// Writing to sensitive paths
-	path := strings.ToLower(fa.Filepath)
+	path := strings.ToLower(fa.Path)
 	sensitivePaths := []string{
 		"/etc/", "/root/", "/var/", "/usr/",
 		".ssh/", ".bashrc", ".profile", ".env",
