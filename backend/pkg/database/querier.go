@@ -57,6 +57,7 @@ type Querier interface {
 	// Get toolcalls stats for all flows
 	GetAllFlowsToolcallsStats(ctx context.Context) ([]GetAllFlowsToolcallsStatsRow, error)
 	GetAllFlowsUsageStats(ctx context.Context) ([]GetAllFlowsUsageStatsRow, error)
+	GetAllPendingToolApprovals(ctx context.Context) ([]ToolApproval, error)
 	GetAssistant(ctx context.Context, id int64) (Assistant, error)
 	GetAssistantUseAgents(ctx context.Context, id int64) (bool, error)
 	// Get total count of assistants for a specific flow
@@ -113,6 +114,7 @@ type Querier interface {
 	GetMsgChain(ctx context.Context, id int64) (Msgchain, error)
 	// Get all msgchains for a flow (including task and subtask level)
 	GetMsgchainsForFlow(ctx context.Context, flowID int64) ([]GetMsgchainsForFlowRow, error)
+	GetPendingToolApprovals(ctx context.Context, flowID int64) ([]ToolApproval, error)
 	GetPrompts(ctx context.Context) ([]Prompt, error)
 	GetProvider(ctx context.Context, id int64) (Provider, error)
 	GetProviders(ctx context.Context) ([]Provider, error)
@@ -160,8 +162,6 @@ type Querier interface {
 	GetTermLog(ctx context.Context, id int64) (Termlog, error)
 	GetToolApproval(ctx context.Context, id int64) (ToolApproval, error)
 	GetToolApprovalsByFlow(ctx context.Context, flowID int64) ([]ToolApproval, error)
-	GetPendingToolApprovals(ctx context.Context, flowID int64) ([]ToolApproval, error)
-	GetAllPendingToolApprovals(ctx context.Context) ([]ToolApproval, error)
 	// Get all toolcalls for a flow
 	GetToolcallsForFlow(ctx context.Context, flowID int64) ([]GetToolcallsForFlowRow, error)
 	// Get toolcalls stats by day for the last 3 months

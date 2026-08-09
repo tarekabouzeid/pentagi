@@ -23,6 +23,11 @@ sql:
             go_type: "float64"
           - db_type: "bigint"
             go_type: "int64"
+          # nullable jsonb: json.RawMessage cannot Scan a NULL driver value,
+          # and a nil []byte doesn't map to SQL NULL as a query argument either
+          - column: "tool_approvals.edited_args"
+            go_type:
+              type: "NullRawMessage"
     
     # Database connection for sqlc analysis
     database:

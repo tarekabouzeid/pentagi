@@ -21,16 +21,14 @@ func ConvertToolApproval(row database.ToolApproval) *model.ToolApproval {
 		taskID := row.TaskID.Int64
 		ta.TaskID = &taskID
 	}
-	if row.EditedArgs != nil {
-		s := string(row.EditedArgs)
+	if row.EditedArgs.Valid {
+		s := string(row.EditedArgs.RawMessage)
 		ta.EditedArgs = &s
 	}
 	if row.Reason.Valid {
 		ta.Reason = &row.Reason.String
 	}
-	if row.RequestedAt.Valid {
-		ta.RequestedAt = row.RequestedAt.Time
-	}
+	ta.RequestedAt = row.RequestedAt
 	if row.DecidedAt.Valid {
 		t := row.DecidedAt.Time
 		ta.DecidedAt = &t

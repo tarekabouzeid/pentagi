@@ -58,9 +58,11 @@ func (s *DBStore) UpdateApproval(ctx context.Context, id int64, resp *ApprovalRe
 		decidedBy = sql.NullInt64{Int64: resp.DecidedBy, Valid: true}
 	}
 
+	editedArgs := database.NullRawMessage{RawMessage: resp.EditedArgs, Valid: len(resp.EditedArgs) > 0}
+
 	_, err := s.db.UpdateToolApprovalDecision(ctx, database.UpdateToolApprovalDecisionParams{
 		Decision:   database.ToolApprovalDecision(resp.Decision),
-		EditedArgs: resp.EditedArgs,
+		EditedArgs: editedArgs,
 		Reason:     reason,
 		DecidedBy:  decidedBy,
 		ID:         id,
@@ -110,7 +112,9 @@ func convertRowToApprovalRequest(row database.ToolApproval) *ApprovalRequest {
 		Args:       row.Args,
 		RiskClass:  RiskClass(row.RiskClass),
 		Decision:   Decision(row.Decision),
-		EditedArgs: row.EditedArgs,
+	}
+	if row.EditedArgs.Valid {
+		req.EditedArgs = row.EditedArgs.RawMessage
 	}
 
 	if row.TaskID.Valid {
@@ -124,9 +128,7 @@ func convertRowToApprovalRequest(row database.ToolApproval) *ApprovalRequest {
 		decidedBy := row.DecidedBy.Int64
 		req.DecidedBy = &decidedBy
 	}
-	if row.RequestedAt.Valid {
-		req.RequestedAt = row.RequestedAt.Time
-	}
+	req.RequestedAt = row.RequestedAt
 	if row.DecidedAt.Valid {
 		t := row.DecidedAt.Time
 		req.DecidedAt = &t

@@ -11,6 +11,22 @@ import (
 	"encoding/json"
 )
 
+const countConsecutiveDenials = `-- name: CountConsecutiveDenials :one
+SELECT COUNT(*) FROM (
+  SELECT decision FROM tool_approvals
+  WHERE flow_id = $1
+  ORDER BY requested_at DESC
+) sub
+WHERE sub.decision = 'denied'
+`
+
+func (q *Queries) CountConsecutiveDenials(ctx context.Context, flowID int64) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countConsecutiveDenials, flowID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createToolApproval = `-- name: CreateToolApproval :one
 INSERT INTO tool_approvals (
   flow_id, task_id, tool_call_id, tool_name, args, risk_class, decision, requested_at
@@ -59,84 +75,14 @@ func (q *Queries) CreateToolApproval(ctx context.Context, arg CreateToolApproval
 	return i, err
 }
 
-const updateToolApprovalDecision = `-- name: UpdateToolApprovalDecision :one
-UPDATE tool_approvals
-SET decision = $1, edited_args = $2, reason = $3, decided_by = $4, decided_at = NOW()
-WHERE id = $5 AND decision = 'pending'
-RETURNING id, flow_id, task_id, tool_call_id, tool_name, args, risk_class, decision, edited_args, reason, decided_by, requested_at, decided_at, created_at
-`
-
-type UpdateToolApprovalDecisionParams struct {
-	Decision   ToolApprovalDecision `json:"decision"`
-	EditedArgs json.RawMessage      `json:"edited_args"`
-	Reason     sql.NullString       `json:"reason"`
-	DecidedBy  sql.NullInt64        `json:"decided_by"`
-	ID         int64                `json:"id"`
-}
-
-func (q *Queries) UpdateToolApprovalDecision(ctx context.Context, arg UpdateToolApprovalDecisionParams) (ToolApproval, error) {
-	row := q.db.QueryRowContext(ctx, updateToolApprovalDecision,
-		arg.Decision,
-		arg.EditedArgs,
-		arg.Reason,
-		arg.DecidedBy,
-		arg.ID,
-	)
-	var i ToolApproval
-	err := row.Scan(
-		&i.ID,
-		&i.FlowID,
-		&i.TaskID,
-		&i.ToolCallID,
-		&i.ToolName,
-		&i.Args,
-		&i.RiskClass,
-		&i.Decision,
-		&i.EditedArgs,
-		&i.Reason,
-		&i.DecidedBy,
-		&i.RequestedAt,
-		&i.DecidedAt,
-		&i.CreatedAt,
-	)
-	return i, err
-}
-
-const getToolApproval = `-- name: GetToolApproval :one
+const getAllPendingToolApprovals = `-- name: GetAllPendingToolApprovals :many
 SELECT id, flow_id, task_id, tool_call_id, tool_name, args, risk_class, decision, edited_args, reason, decided_by, requested_at, decided_at, created_at FROM tool_approvals
-WHERE id = $1
+WHERE decision = 'pending'
+ORDER BY requested_at ASC
 `
 
-func (q *Queries) GetToolApproval(ctx context.Context, id int64) (ToolApproval, error) {
-	row := q.db.QueryRowContext(ctx, getToolApproval, id)
-	var i ToolApproval
-	err := row.Scan(
-		&i.ID,
-		&i.FlowID,
-		&i.TaskID,
-		&i.ToolCallID,
-		&i.ToolName,
-		&i.Args,
-		&i.RiskClass,
-		&i.Decision,
-		&i.EditedArgs,
-		&i.Reason,
-		&i.DecidedBy,
-		&i.RequestedAt,
-		&i.DecidedAt,
-		&i.CreatedAt,
-	)
-	return i, err
-}
-
-const getToolApprovalsByFlow = `-- name: GetToolApprovalsByFlow :many
-SELECT id, flow_id, task_id, tool_call_id, tool_name, args, risk_class, decision, edited_args, reason, decided_by, requested_at, decided_at, created_at FROM tool_approvals
-WHERE flow_id = $1
-ORDER BY requested_at DESC
-`
-
-func (q *Queries) GetToolApprovalsByFlow(ctx context.Context, flowID int64) ([]ToolApproval, error) {
-	rows, err := q.db.QueryContext(ctx, getToolApprovalsByFlow, flowID)
+func (q *Queries) GetAllPendingToolApprovals(ctx context.Context) ([]ToolApproval, error) {
+	rows, err := q.db.QueryContext(ctx, getAllPendingToolApprovals)
 	if err != nil {
 		return nil, err
 	}
@@ -217,14 +163,41 @@ func (q *Queries) GetPendingToolApprovals(ctx context.Context, flowID int64) ([]
 	return items, nil
 }
 
-const getAllPendingToolApprovals = `-- name: GetAllPendingToolApprovals :many
+const getToolApproval = `-- name: GetToolApproval :one
 SELECT id, flow_id, task_id, tool_call_id, tool_name, args, risk_class, decision, edited_args, reason, decided_by, requested_at, decided_at, created_at FROM tool_approvals
-WHERE decision = 'pending'
-ORDER BY requested_at ASC
+WHERE id = $1
 `
 
-func (q *Queries) GetAllPendingToolApprovals(ctx context.Context) ([]ToolApproval, error) {
-	rows, err := q.db.QueryContext(ctx, getAllPendingToolApprovals)
+func (q *Queries) GetToolApproval(ctx context.Context, id int64) (ToolApproval, error) {
+	row := q.db.QueryRowContext(ctx, getToolApproval, id)
+	var i ToolApproval
+	err := row.Scan(
+		&i.ID,
+		&i.FlowID,
+		&i.TaskID,
+		&i.ToolCallID,
+		&i.ToolName,
+		&i.Args,
+		&i.RiskClass,
+		&i.Decision,
+		&i.EditedArgs,
+		&i.Reason,
+		&i.DecidedBy,
+		&i.RequestedAt,
+		&i.DecidedAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getToolApprovalsByFlow = `-- name: GetToolApprovalsByFlow :many
+SELECT id, flow_id, task_id, tool_call_id, tool_name, args, risk_class, decision, edited_args, reason, decided_by, requested_at, decided_at, created_at FROM tool_approvals
+WHERE flow_id = $1
+ORDER BY requested_at DESC
+`
+
+func (q *Queries) GetToolApprovalsByFlow(ctx context.Context, flowID int64) ([]ToolApproval, error) {
+	rows, err := q.db.QueryContext(ctx, getToolApprovalsByFlow, flowID)
 	if err != nil {
 		return nil, err
 	}
@@ -261,18 +234,45 @@ func (q *Queries) GetAllPendingToolApprovals(ctx context.Context) ([]ToolApprova
 	return items, nil
 }
 
-const countConsecutiveDenials = `-- name: CountConsecutiveDenials :one
-SELECT COUNT(*) FROM (
-  SELECT decision FROM tool_approvals
-  WHERE flow_id = $1
-  ORDER BY requested_at DESC
-) sub
-WHERE sub.decision = 'denied'
+const updateToolApprovalDecision = `-- name: UpdateToolApprovalDecision :one
+UPDATE tool_approvals
+SET decision = $1, edited_args = $2, reason = $3, decided_by = $4, decided_at = NOW()
+WHERE id = $5 AND decision = 'pending'
+RETURNING id, flow_id, task_id, tool_call_id, tool_name, args, risk_class, decision, edited_args, reason, decided_by, requested_at, decided_at, created_at
 `
 
-func (q *Queries) CountConsecutiveDenials(ctx context.Context, flowID int64) (int64, error) {
-	row := q.db.QueryRowContext(ctx, countConsecutiveDenials, flowID)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
+type UpdateToolApprovalDecisionParams struct {
+	Decision   ToolApprovalDecision `json:"decision"`
+	EditedArgs NullRawMessage       `json:"edited_args"`
+	Reason     sql.NullString       `json:"reason"`
+	DecidedBy  sql.NullInt64        `json:"decided_by"`
+	ID         int64                `json:"id"`
+}
+
+func (q *Queries) UpdateToolApprovalDecision(ctx context.Context, arg UpdateToolApprovalDecisionParams) (ToolApproval, error) {
+	row := q.db.QueryRowContext(ctx, updateToolApprovalDecision,
+		arg.Decision,
+		arg.EditedArgs,
+		arg.Reason,
+		arg.DecidedBy,
+		arg.ID,
+	)
+	var i ToolApproval
+	err := row.Scan(
+		&i.ID,
+		&i.FlowID,
+		&i.TaskID,
+		&i.ToolCallID,
+		&i.ToolName,
+		&i.Args,
+		&i.RiskClass,
+		&i.Decision,
+		&i.EditedArgs,
+		&i.Reason,
+		&i.DecidedBy,
+		&i.RequestedAt,
+		&i.DecidedAt,
+		&i.CreatedAt,
+	)
+	return i, err
 }

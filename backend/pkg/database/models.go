@@ -9,6 +9,7 @@ import (
 	"database/sql/driver"
 	"encoding/json"
 	"fmt"
+	"time"
 )
 
 type AssistantStatus string
@@ -186,6 +187,49 @@ func (ns NullFlowStatus) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.FlowStatus), nil
+}
+
+type HitlMode string
+
+const (
+	HitlModePerTool        HitlMode = "per_tool"
+	HitlModeRiskClassified HitlMode = "risk_classified"
+	HitlModePolicyOnly     HitlMode = "policy_only"
+)
+
+func (e *HitlMode) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = HitlMode(s)
+	case string:
+		*e = HitlMode(s)
+	default:
+		return fmt.Errorf("unsupported scan type for HitlMode: %T", src)
+	}
+	return nil
+}
+
+type NullHitlMode struct {
+	HitlMode HitlMode `json:"hitl_mode"`
+	Valid    bool     `json:"valid"` // Valid is true if HitlMode is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullHitlMode) Scan(value interface{}) error {
+	if value == nil {
+		ns.HitlMode, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.HitlMode.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullHitlMode) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.HitlMode), nil
 }
 
 type MsgchainType string
@@ -466,6 +510,50 @@ func (ns NullProviderType) Value() (driver.Value, error) {
 	return string(ns.ProviderType), nil
 }
 
+type RiskClass string
+
+const (
+	RiskClassLow     RiskClass = "low"
+	RiskClassMedium  RiskClass = "medium"
+	RiskClassHigh    RiskClass = "high"
+	RiskClassBlocked RiskClass = "blocked"
+)
+
+func (e *RiskClass) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = RiskClass(s)
+	case string:
+		*e = RiskClass(s)
+	default:
+		return fmt.Errorf("unsupported scan type for RiskClass: %T", src)
+	}
+	return nil
+}
+
+type NullRiskClass struct {
+	RiskClass RiskClass `json:"risk_class"`
+	Valid     bool      `json:"valid"` // Valid is true if RiskClass is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullRiskClass) Scan(value interface{}) error {
+	if value == nil {
+		ns.RiskClass, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.RiskClass.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullRiskClass) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.RiskClass), nil
+}
+
 type SearchengineType string
 
 const (
@@ -687,6 +775,51 @@ func (ns NullTokenStatus) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.TokenStatus), nil
+}
+
+type ToolApprovalDecision string
+
+const (
+	ToolApprovalDecisionPending  ToolApprovalDecision = "pending"
+	ToolApprovalDecisionApproved ToolApprovalDecision = "approved"
+	ToolApprovalDecisionDenied   ToolApprovalDecision = "denied"
+	ToolApprovalDecisionEdited   ToolApprovalDecision = "edited"
+	ToolApprovalDecisionTimeout  ToolApprovalDecision = "timeout"
+)
+
+func (e *ToolApprovalDecision) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ToolApprovalDecision(s)
+	case string:
+		*e = ToolApprovalDecision(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ToolApprovalDecision: %T", src)
+	}
+	return nil
+}
+
+type NullToolApprovalDecision struct {
+	ToolApprovalDecision ToolApprovalDecision `json:"tool_approval_decision"`
+	Valid                bool                 `json:"valid"` // Valid is true if ToolApprovalDecision is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullToolApprovalDecision) Scan(value interface{}) error {
+	if value == nil {
+		ns.ToolApprovalDecision, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ToolApprovalDecision.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullToolApprovalDecision) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ToolApprovalDecision), nil
 }
 
 type ToolcallStatus string
@@ -1076,6 +1209,23 @@ type Termlog struct {
 	SubtaskID   sql.NullInt64 `json:"subtask_id"`
 }
 
+type ToolApproval struct {
+	ID          int64                `json:"id"`
+	FlowID      int64                `json:"flow_id"`
+	TaskID      sql.NullInt64        `json:"task_id"`
+	ToolCallID  string               `json:"tool_call_id"`
+	ToolName    string               `json:"tool_name"`
+	Args        json.RawMessage      `json:"args"`
+	RiskClass   RiskClass            `json:"risk_class"`
+	Decision    ToolApprovalDecision `json:"decision"`
+	EditedArgs  NullRawMessage       `json:"edited_args"`
+	Reason      sql.NullString       `json:"reason"`
+	DecidedBy   sql.NullInt64        `json:"decided_by"`
+	RequestedAt time.Time            `json:"requested_at"`
+	DecidedAt   sql.NullTime         `json:"decided_at"`
+	CreatedAt   time.Time            `json:"created_at"`
+}
+
 type Toolcall struct {
 	ID              int64           `json:"id"`
 	CallID          string          `json:"call_id"`
@@ -1125,64 +1275,4 @@ type Vecstorelog struct {
 	TaskID    sql.NullInt64      `json:"task_id"`
 	SubtaskID sql.NullInt64      `json:"subtask_id"`
 	CreatedAt sql.NullTime       `json:"created_at"`
-}
-
-type ToolApprovalDecision string
-
-const (
-	ToolApprovalDecisionPending  ToolApprovalDecision = "pending"
-	ToolApprovalDecisionApproved ToolApprovalDecision = "approved"
-	ToolApprovalDecisionDenied   ToolApprovalDecision = "denied"
-	ToolApprovalDecisionEdited   ToolApprovalDecision = "edited"
-	ToolApprovalDecisionTimeout  ToolApprovalDecision = "timeout"
-)
-
-func (e *ToolApprovalDecision) Scan(src interface{}) error {
-	switch s := src.(type) {
-	case []byte:
-		*e = ToolApprovalDecision(s)
-	case string:
-		*e = ToolApprovalDecision(s)
-	default:
-		return fmt.Errorf("unsupported scan type for ToolApprovalDecision: %T", src)
-	}
-	return nil
-}
-
-type RiskClass string
-
-const (
-	RiskClassLow     RiskClass = "low"
-	RiskClassMedium  RiskClass = "medium"
-	RiskClassHigh    RiskClass = "high"
-	RiskClassBlocked RiskClass = "blocked"
-)
-
-func (e *RiskClass) Scan(src interface{}) error {
-	switch s := src.(type) {
-	case []byte:
-		*e = RiskClass(s)
-	case string:
-		*e = RiskClass(s)
-	default:
-		return fmt.Errorf("unsupported scan type for RiskClass: %T", src)
-	}
-	return nil
-}
-
-type ToolApproval struct {
-	ID          int64                `json:"id"`
-	FlowID      int64                `json:"flow_id"`
-	TaskID      sql.NullInt64        `json:"task_id"`
-	ToolCallID  string               `json:"tool_call_id"`
-	ToolName    string               `json:"tool_name"`
-	Args        json.RawMessage      `json:"args"`
-	RiskClass   RiskClass            `json:"risk_class"`
-	Decision    ToolApprovalDecision `json:"decision"`
-	EditedArgs  json.RawMessage      `json:"edited_args"`
-	Reason      sql.NullString       `json:"reason"`
-	DecidedBy   sql.NullInt64        `json:"decided_by"`
-	RequestedAt sql.NullTime         `json:"requested_at"`
-	DecidedAt   sql.NullTime         `json:"decided_at"`
-	CreatedAt   sql.NullTime         `json:"created_at"`
 }
