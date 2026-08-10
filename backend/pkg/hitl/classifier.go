@@ -2,10 +2,11 @@ package hitl
 
 import (
 	"encoding/json"
+	"regexp"
 	"strings"
 )
 
-// dangerousCommands are shell commands/patterns that escalate risk.
+// dangerousCommands are destructive/host-takeover shell commands; always high risk.
 var dangerousCommands = []string{
 	"sudo",
 	"rm -rf",
@@ -23,6 +24,35 @@ var dangerousCommands = []string{
 	"poweroff",
 }
 
+// exploitTools actively attempt exploitation or credential cracking against a target,
+// unlike passive discovery tools; running them is inherently high risk.
+var exploitTools = []string{
+	"sqlmap",
+	"hydra",
+	"medusa",
+	"john",
+	"hashcat",
+	"metasploit",
+	"msfconsole",
+	"msfvenom",
+	"crackmapexec",
+	"responder",
+}
+
+// scanTools are passive/discovery tools: noisy but non-destructive by default.
+var scanTools = []string{
+	"nmap",
+	"masscan",
+	"nikto",
+	"dirb",
+	"gobuster",
+	"ffuf",
+	"nuclei",
+	"burpsuite",
+	"whatweb",
+	"wpscan",
+}
+
 // networkCommands are commands that make outbound network connections.
 var networkCommands = []string{
 	"curl",
@@ -37,24 +67,23 @@ var networkCommands = []string{
 	"ftp ",
 }
 
-// reconTools are commands often used in penetration testing.
-var reconTools = []string{
-	"nmap",
-	"masscan",
-	"nikto",
-	"dirb",
-	"gobuster",
-	"ffuf",
-	"sqlmap",
-	"hydra",
-	"john",
-	"hashcat",
-	"metasploit",
-	"msfconsole",
-	"msfvenom",
-	"burpsuite",
-	"nuclei",
+// credentialIndicators flag requests that target an authentication/credential surface.
+var credentialIndicators = []string{
+	"password", "passwd", "/auth", "/login", "signin", "sign-in", "credential", "token=",
 }
+
+// writeHTTPRe matches a state-changing HTTP request (vs. a plain read-only GET), e.g.
+// curl -X POST/--request PUT/--data/--form. Matched against the ORIGINAL (non-lowercased)
+// command because curl's short flags are case-sensitive and collide when lowercased
+// (-d data vs -D dump-header, -F form vs -f fail, -X request vs -x proxy).
+var writeHTTPRe = regexp.MustCompile(`--request\s+(?i:post|put|delete|patch)\b|-X\s*(?i:post|put|delete|patch)\b|--data(-raw|-binary|-urlencode)?[=\s]|--form[=\s]|-d\s|-F\s`)
+
+// reverseShellRe matches classic reverse-shell / remote-code-execution techniques:
+// bash -i >& /dev/tcp/..., nc -e /bin/sh, or piping remote content into an interpreter.
+var reverseShellRe = regexp.MustCompile(`/dev/tcp/|-e\s+(/bin/(sh|bash)|cmd\.exe)|\|\s*(sh|bash|zsh|dash|python3?|perl|ruby|node)\b`)
+
+// sqlInjectionRe matches common SQL-injection payload markers in a command/URL.
+var sqlInjectionRe = regexp.MustCompile(`(?i)union\s+select|\bor\s+1\s*=\s*1\b|\band\s+1\s*=\s*1\b|'\s*or\s*'1'\s*=\s*'1|\bsleep\(\d|\bbenchmark\(|\bxp_cmdshell\b|\bwaitfor\s+delay\b`)
 
 // TerminalArgs represents the expected JSON structure for terminal tool calls.
 // Field names must match tools.TerminalAction (backend/pkg/tools/args.go).
@@ -79,7 +108,9 @@ func ClassifyRisk(toolName string, args json.RawMessage) RiskClass {
 	case "file":
 		return classifyFileRisk(args)
 	case "browser":
-		return RiskMedium
+		// Browser tool only extracts page content (markdown/html/links); it never
+		// submits forms or executes anything, so it's no riskier than a file read.
+		return RiskLow
 	default:
 		return RiskLow
 	}
@@ -93,25 +124,35 @@ func classifyTerminalRisk(args json.RawMessage) RiskClass {
 
 	cmd := strings.ToLower(ta.Input)
 
-	// Check for blocked/dangerous commands
-	for _, pattern := range dangerousCommands {
-		if strings.Contains(cmd, pattern) {
-			return RiskHigh
-		}
+	// Destructive/host-takeover commands are always high risk.
+	if containsAny(cmd, dangerousCommands) {
+		return RiskHigh
 	}
 
-	// Check for network activity
-	for _, pattern := range networkCommands {
-		if strings.Contains(cmd, pattern) {
-			return RiskMedium
-		}
+	// Remote code execution patterns: reverse shells, piping remote content into an interpreter.
+	if reverseShellRe.MatchString(cmd) {
+		return RiskHigh
 	}
 
-	// Check for recon/exploitation tools
-	for _, pattern := range reconTools {
-		if strings.Contains(cmd, pattern) {
-			return RiskMedium
-		}
+	// Active exploitation/credential-cracking tools are high risk regardless of target.
+	if containsAny(cmd, exploitTools) {
+		return RiskHigh
+	}
+
+	// SQL-injection payloads indicate active exploitation, not passive recon.
+	if sqlInjectionRe.MatchString(cmd) {
+		return RiskHigh
+	}
+
+	// A state-changing HTTP request against an auth/credential endpoint is an active
+	// account-takeover/brute-force attempt, not passive recon.
+	if containsAny(cmd, networkCommands) && writeHTTPRe.MatchString(ta.Input) && containsAny(cmd, credentialIndicators) {
+		return RiskHigh
+	}
+
+	// Outbound network activity and passive scanning tools: real but non-destructive recon.
+	if containsAny(cmd, networkCommands) || containsAny(cmd, scanTools) {
+		return RiskMedium
 	}
 
 	// Detached commands are riskier (long-running, harder to track)
@@ -124,8 +165,17 @@ func classifyTerminalRisk(args json.RawMessage) RiskClass {
 		return RiskLow
 	}
 
-	// Default: low risk for unrecognized but non-flagged commands
-	return RiskLow
+	// Unrecognized and not obviously read-only: err on the side of caution.
+	return RiskMedium
+}
+
+func containsAny(s string, patterns []string) bool {
+	for _, p := range patterns {
+		if strings.Contains(s, p) {
+			return true
+		}
+	}
+	return false
 }
 
 func classifyFileRisk(args json.RawMessage) RiskClass {
@@ -146,10 +196,8 @@ func classifyFileRisk(args json.RawMessage) RiskClass {
 		".ssh/", ".bashrc", ".profile", ".env",
 		"/proc/", "/sys/", "/dev/",
 	}
-	for _, sp := range sensitivePaths {
-		if strings.Contains(path, sp) {
-			return RiskHigh
-		}
+	if containsAny(path, sensitivePaths) {
+		return RiskHigh
 	}
 
 	return RiskMedium
