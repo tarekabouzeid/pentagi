@@ -27,13 +27,14 @@ import (
 	"pentagi/pkg/server/auth"
 	"pentagi/pkg/templates"
 	"pentagi/pkg/templates/validator"
+	"pentagi/pkg/tools"
 	"time"
 
 	"github.com/sirupsen/logrus"
 )
 
 // CreateFlow is the resolver for the createFlow field.
-func (r *mutationResolver) CreateFlow(ctx context.Context, modelProvider string, input string) (*model.Flow, error) {
+func (r *mutationResolver) CreateFlow(ctx context.Context, modelProvider string, input string, hitlMode *model.HITLMode, hitlMinRisk *model.RiskClass) (*model.Flow, error) {
 	uid, _, err := validatePermission(ctx, "flows.create")
 	if err != nil {
 		return nil, err
@@ -60,7 +61,19 @@ func (r *mutationResolver) CreateFlow(ctx context.Context, modelProvider string,
 	}
 	prvtype := prv.Type()
 
-	fw, err := r.Controller.CreateFlow(ctx, uid, input, prvname, prvtype, nil)
+	var functions *tools.Functions
+	if hitlMode != nil || hitlMinRisk != nil {
+		override := &tools.HITLOverride{}
+		if hitlMode != nil {
+			override.Mode = string(*hitlMode)
+		}
+		if hitlMinRisk != nil {
+			override.MinRisk = string(*hitlMinRisk)
+		}
+		functions = &tools.Functions{HITL: override}
+	}
+
+	fw, err := r.Controller.CreateFlow(ctx, uid, input, prvname, prvtype, functions)
 	if err != nil {
 		return nil, err
 	}

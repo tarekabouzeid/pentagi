@@ -251,6 +251,9 @@ func ParseConfig(functionsJSON json.RawMessage) Config {
 	if cfg.Mode == "" {
 		cfg.Mode = ModeRiskClassified
 	}
+	if cfg.MinRisk == "" {
+		cfg.MinRisk = RiskMedium
+	}
 	if cfg.OnTimeout == "" {
 		cfg.OnTimeout = OnTimeoutDeny
 	}

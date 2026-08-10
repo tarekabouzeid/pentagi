@@ -12,6 +12,7 @@ import {
     useDecideToolApprovalMutation,
 } from '@/graphql/types';
 import { cn } from '@/lib/utils';
+import { formatDate } from '@/lib/utils/format';
 
 interface ToolApprovalCardProps {
     approval: ToolApprovalFragmentFragment;
@@ -73,7 +74,7 @@ const ToolApprovalCard = ({ approval }: ToolApprovalCardProps) => {
     return (
         <div
             className={cn(
-                'rounded-lg border p-4 space-y-3',
+                'space-y-3 rounded-lg border p-4',
                 isPending ? 'border-yellow-500/30 bg-yellow-500/5' : 'border-muted',
             )}
         >
@@ -81,15 +82,23 @@ const ToolApprovalCard = ({ approval }: ToolApprovalCardProps) => {
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                     <code className="text-sm font-semibold">{approval.toolName}</code>
-                    <Badge className={cn('text-xs', riskConfig.color)} variant="outline">
+                    <Badge
+                        className={cn('text-xs', riskConfig.color)}
+                        variant="outline"
+                    >
                         <RiskIcon className="mr-1 size-3" />
                         {riskConfig.label}
                     </Badge>
+                    <span className="text-muted-foreground text-xs">{formatDate(new Date(approval.requestedAt))}</span>
                 </div>
                 {!isPending && (
                     <Badge
                         className="text-xs"
-                        variant={approval.decision === 'approved' || approval.decision === 'edited' ? 'default' : 'destructive'}
+                        variant={
+                            approval.decision === 'approved' || approval.decision === 'edited'
+                                ? 'default'
+                                : 'destructive'
+                        }
                     >
                         {approval.decision}
                     </Badge>
@@ -98,7 +107,7 @@ const ToolApprovalCard = ({ approval }: ToolApprovalCardProps) => {
 
             {/* Arguments */}
             <div className="space-y-1">
-                <p className="text-xs font-medium text-muted-foreground">Arguments</p>
+                <p className="text-muted-foreground text-xs font-medium">Arguments</p>
                 {isEditing ? (
                     <Textarea
                         className="font-mono text-xs"
@@ -107,7 +116,9 @@ const ToolApprovalCard = ({ approval }: ToolApprovalCardProps) => {
                         value={editedArgs}
                     />
                 ) : (
-                    <pre className="max-h-48 overflow-auto rounded bg-muted p-2 text-xs">{formatArgs(approval.args)}</pre>
+                    <pre className="bg-muted max-h-48 overflow-auto rounded p-2 text-xs">
+                        {formatArgs(approval.args)}
+                    </pre>
                 )}
             </div>
 
@@ -115,7 +126,7 @@ const ToolApprovalCard = ({ approval }: ToolApprovalCardProps) => {
             {isPending && (
                 <div className="space-y-2">
                     <div className="space-y-1">
-                        <p className="text-xs font-medium text-muted-foreground">Reason (optional)</p>
+                        <p className="text-muted-foreground text-xs font-medium">Reason (optional)</p>
                         <Textarea
                             className="text-xs"
                             onChange={(e) => setReason(e.target.value)}
@@ -145,7 +156,11 @@ const ToolApprovalCard = ({ approval }: ToolApprovalCardProps) => {
                                 Approve Edited
                             </Button>
                         ) : (
-                            <Button onClick={() => setIsEditing(true)} size="sm" variant="outline">
+                            <Button
+                                onClick={() => setIsEditing(true)}
+                                size="sm"
+                                variant="outline"
+                            >
                                 <Edit className="mr-1 size-3" />
                                 Edit
                             </Button>
@@ -160,7 +175,14 @@ const ToolApprovalCard = ({ approval }: ToolApprovalCardProps) => {
                             Deny
                         </Button>
                         {isEditing && (
-                            <Button onClick={() => { setIsEditing(false); setEditedArgs(approval.args); }} size="sm" variant="ghost">
+                            <Button
+                                onClick={() => {
+                                    setIsEditing(false);
+                                    setEditedArgs(approval.args);
+                                }}
+                                size="sm"
+                                variant="ghost"
+                            >
                                 Cancel Edit
                             </Button>
                         )}
@@ -169,15 +191,20 @@ const ToolApprovalCard = ({ approval }: ToolApprovalCardProps) => {
             )}
 
             {/* Decided info */}
+            {!isPending && approval.decidedAt && (
+                <p className="text-muted-foreground text-xs">
+                    <span className="font-medium">Decided:</span> {formatDate(new Date(approval.decidedAt))}
+                </p>
+            )}
             {!isPending && approval.reason && (
-                <p className="text-xs text-muted-foreground">
+                <p className="text-muted-foreground text-xs">
                     <span className="font-medium">Reason:</span> {approval.reason}
                 </p>
             )}
             {!isPending && approval.editedArgs && (
                 <div className="space-y-1">
-                    <p className="text-xs font-medium text-muted-foreground">Edited Arguments</p>
-                    <pre className="max-h-32 overflow-auto rounded bg-muted p-2 text-xs">
+                    <p className="text-muted-foreground text-xs font-medium">Edited Arguments</p>
+                    <pre className="bg-muted max-h-32 overflow-auto rounded p-2 text-xs">
                         {formatArgs(approval.editedArgs)}
                     </pre>
                 </div>

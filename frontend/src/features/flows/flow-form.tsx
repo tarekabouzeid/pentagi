@@ -1,5 +1,17 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { ArrowUp, Check, ChevronDown, FileSymlink, FileText, Square, X } from 'lucide-react';
+import {
+    ArrowUp,
+    Check,
+    ChevronDown,
+    FileSymlink,
+    FileText,
+    ShieldAlert,
+    ShieldCheck,
+    ShieldEllipsis,
+    ShieldX,
+    Square,
+    X,
+} from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRef } from 'react';
 import { useForm } from 'react-hook-form';
@@ -30,7 +42,38 @@ import { getProviderDisplayName } from '@/models/provider';
 import { useProviders } from '@/providers/providers-provider';
 import { type Template, useTemplates } from '@/providers/templates-provider';
 
+export const AUTONOMY_LEVELS = ['autonomous', 'high_risk_only', 'balanced', 'full_control'] as const;
+
+export type AutonomyLevel = (typeof AUTONOMY_LEVELS)[number];
+
+export const autonomyLevelConfig: Record<
+    AutonomyLevel,
+    { description: string; icon: typeof ShieldCheck; label: string }
+> = {
+    autonomous: {
+        description: 'PentAGI runs all tool calls without approval',
+        icon: ShieldCheck,
+        label: 'Fully autonomous',
+    },
+    balanced: {
+        description: 'Medium and high-risk tool calls need your approval (default)',
+        icon: ShieldEllipsis,
+        label: 'Balanced',
+    },
+    full_control: {
+        description: 'Every tool call needs your approval',
+        icon: ShieldX,
+        label: 'Full control',
+    },
+    high_risk_only: {
+        description: 'Only high-risk and blocked tool calls need your approval',
+        icon: ShieldAlert,
+        label: 'Only high-risk',
+    },
+};
+
 const formSchema = z.object({
+    autonomyLevel: z.enum(AUTONOMY_LEVELS),
     message: z.string().trim().min(1, { message: 'Message cannot be empty' }),
     providerName: z.string().trim().min(1, { message: 'Provider must be selected' }),
     useAgents: z.boolean(),
@@ -99,6 +142,7 @@ export const FlowForm = ({
 
     const form = useForm<FlowFormValues>({
         defaultValues: {
+            autonomyLevel: defaultValues?.autonomyLevel ?? 'balanced',
             message: defaultValues?.message ?? '',
             providerName: defaultValues?.providerName ?? '',
             useAgents: defaultValues?.useAgents ?? false,
@@ -355,6 +399,85 @@ export const FlowForm = ({
                                                     </Tooltip>
                                                 </TooltipProvider>
                                             )}
+                                        />
+                                    )}
+
+                                    {type === 'automation' && (
+                                        <FormField
+                                            control={control}
+                                            name="autonomyLevel"
+                                            render={({ field: autonomyField }) => {
+                                                const currentLevel = autonomyLevelConfig[autonomyField.value];
+                                                const CurrentIcon = currentLevel.icon;
+
+                                                return (
+                                                    <DropdownMenu>
+                                                        <TooltipProvider>
+                                                            <Tooltip>
+                                                                <TooltipTrigger asChild>
+                                                                    <DropdownMenuTrigger asChild>
+                                                                        <InputGroupButton
+                                                                            disabled={isFormDisabled}
+                                                                            variant="ghost"
+                                                                        >
+                                                                            <CurrentIcon />
+                                                                            <span className="max-w-32 truncate">
+                                                                                {currentLevel.label}
+                                                                            </span>
+                                                                            <ChevronDown />
+                                                                        </InputGroupButton>
+                                                                    </DropdownMenuTrigger>
+                                                                </TooltipTrigger>
+                                                                <TooltipContent>
+                                                                    <p className="max-w-48">
+                                                                        Choose how much autonomy PentAGI has before it
+                                                                        asks for your approval
+                                                                    </p>
+                                                                </TooltipContent>
+                                                            </Tooltip>
+                                                        </TooltipProvider>
+                                                        <DropdownMenuContent
+                                                            align="start"
+                                                            side="top"
+                                                        >
+                                                            <DropdownMenuGroup>
+                                                                {AUTONOMY_LEVELS.map((level) => {
+                                                                    const config = autonomyLevelConfig[level];
+                                                                    const LevelIcon = config.icon;
+
+                                                                    return (
+                                                                        <DropdownMenuItem
+                                                                            key={level}
+                                                                            onSelect={() => {
+                                                                                if (isFormDisabled) {
+                                                                                    return;
+                                                                                }
+
+                                                                                autonomyField.onChange(level);
+                                                                            }}
+                                                                        >
+                                                                            <div className="flex w-full min-w-0 items-start gap-2">
+                                                                                <LevelIcon className="mt-0.5 size-4 shrink-0" />
+                                                                                <div className="flex min-w-0 flex-col">
+                                                                                    <span className="truncate">
+                                                                                        {config.label}
+                                                                                    </span>
+                                                                                    <span className="text-muted-foreground text-xs">
+                                                                                        {config.description}
+                                                                                    </span>
+                                                                                </div>
+                                                                                {autonomyField.value === level && (
+                                                                                    <Check className="ml-auto size-4 shrink-0" />
+                                                                                )}
+                                                                            </div>
+                                                                        </DropdownMenuItem>
+                                                                    );
+                                                                })}
+                                                            </DropdownMenuGroup>
+                                                        </DropdownMenuContent>
+                                                    </DropdownMenu>
+                                                );
+                                            }}
                                         />
                                     )}
 

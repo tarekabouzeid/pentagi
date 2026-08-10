@@ -29,6 +29,16 @@ type Functions struct {
 	Token    *string            `form:"token,omitempty" json:"token,omitempty" validate:"omitempty"`
 	Disabled []DisableFunction  `form:"disabled,omitempty" json:"disabled,omitempty" validate:"omitempty,valid"`
 	Function []ExternalFunction `form:"functions,omitempty" json:"functions,omitempty" validate:"omitempty,valid"`
+	HITL     *HITLOverride      `form:"hitl,omitempty" json:"hitl,omitempty" validate:"omitempty"`
+}
+
+// HITLOverride carries optional HITL config overrides supplied at flow creation.
+// It intentionally does not reference pkg/hitl.Config to avoid an import cycle:
+// pkg/hitl -> pkg/graph/subscriptions -> pkg/database/converter -> pkg/tools.
+// Field names/JSON tags must stay in sync with hitl.Config for hitl.ParseConfig to read them.
+type HITLOverride struct {
+	Mode    string `form:"mode,omitempty" json:"mode,omitempty" validate:"omitempty"`
+	MinRisk string `form:"min_risk,omitempty" json:"min_risk,omitempty" validate:"omitempty"`
 }
 
 func (f *Functions) Scan(input any) error {

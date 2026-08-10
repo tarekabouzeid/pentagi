@@ -310,7 +310,7 @@ type ComplexityRoot struct {
 		CallAssistant      func(childComplexity int, flowID int64, assistantID int64, input string, useAgents bool) int
 		CreateAPIToken     func(childComplexity int, input model.CreateAPITokenInput) int
 		CreateAssistant    func(childComplexity int, flowID int64, modelProvider string, input string, useAgents bool) int
-		CreateFlow         func(childComplexity int, modelProvider string, input string) int
+		CreateFlow         func(childComplexity int, modelProvider string, input string, hitlMode *model.HITLMode, hitlMinRisk *model.RiskClass) int
 		CreateFlowTemplate func(childComplexity int, input model.CreateFlowTemplateInput) int
 		CreatePrompt       func(childComplexity int, typeArg model.PromptType, template string) int
 		CreateProvider     func(childComplexity int, name string, typeArg model.ProviderType, agents model.AgentsConfig) int
@@ -669,7 +669,7 @@ type ComplexityRoot struct {
 }
 
 type MutationResolver interface {
-	CreateFlow(ctx context.Context, modelProvider string, input string) (*model.Flow, error)
+	CreateFlow(ctx context.Context, modelProvider string, input string, hitlMode *model.HITLMode, hitlMinRisk *model.RiskClass) (*model.Flow, error)
 	PutUserInput(ctx context.Context, flowID int64, input string, modelProvider *string) (model.ResultType, error)
 	StopFlow(ctx context.Context, flowID int64) (model.ResultType, error)
 	FinishFlow(ctx context.Context, flowID int64) (model.ResultType, error)
@@ -2026,7 +2026,7 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			return 0, false
 		}
 
-		return e.complexity.Mutation.CreateFlow(childComplexity, args["modelProvider"].(string), args["input"].(string)), true
+		return e.complexity.Mutation.CreateFlow(childComplexity, args["modelProvider"].(string), args["input"].(string), args["hitlMode"].(*model.HITLMode), args["hitlMinRisk"].(*model.RiskClass)), true
 
 	case "Mutation.createFlowTemplate":
 		if e.complexity.Mutation.CreateFlowTemplate == nil {
@@ -4706,6 +4706,16 @@ func (ec *executionContext) field_Mutation_createFlow_args(ctx context.Context, 
 		return nil, err
 	}
 	args["input"] = arg1
+	arg2, err := ec.field_Mutation_createFlow_argsHitlMode(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["hitlMode"] = arg2
+	arg3, err := ec.field_Mutation_createFlow_argsHitlMinRisk(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["hitlMinRisk"] = arg3
 	return args, nil
 }
 func (ec *executionContext) field_Mutation_createFlow_argsModelProvider(
@@ -4749,6 +4759,50 @@ func (ec *executionContext) field_Mutation_createFlow_argsInput(
 	}
 
 	var zeroVal string
+	return zeroVal, nil
+}
+
+func (ec *executionContext) field_Mutation_createFlow_argsHitlMode(
+	ctx context.Context,
+	rawArgs map[string]interface{},
+) (*model.HITLMode, error) {
+	// We won't call the directive if the argument is null.
+	// Set call_argument_directives_with_null to true to call directives
+	// even if the argument is null.
+	_, ok := rawArgs["hitlMode"]
+	if !ok {
+		var zeroVal *model.HITLMode
+		return zeroVal, nil
+	}
+
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("hitlMode"))
+	if tmp, ok := rawArgs["hitlMode"]; ok {
+		return ec.unmarshalOHITLMode2ᚖpentagiᚋpkgᚋgraphᚋmodelᚐHITLMode(ctx, tmp)
+	}
+
+	var zeroVal *model.HITLMode
+	return zeroVal, nil
+}
+
+func (ec *executionContext) field_Mutation_createFlow_argsHitlMinRisk(
+	ctx context.Context,
+	rawArgs map[string]interface{},
+) (*model.RiskClass, error) {
+	// We won't call the directive if the argument is null.
+	// Set call_argument_directives_with_null to true to call directives
+	// even if the argument is null.
+	_, ok := rawArgs["hitlMinRisk"]
+	if !ok {
+		var zeroVal *model.RiskClass
+		return zeroVal, nil
+	}
+
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("hitlMinRisk"))
+	if tmp, ok := rawArgs["hitlMinRisk"]; ok {
+		return ec.unmarshalORiskClass2ᚖpentagiᚋpkgᚋgraphᚋmodelᚐRiskClass(ctx, tmp)
+	}
+
+	var zeroVal *model.RiskClass
 	return zeroVal, nil
 }
 
@@ -15624,7 +15678,7 @@ func (ec *executionContext) _Mutation_createFlow(ctx context.Context, field grap
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().CreateFlow(rctx, fc.Args["modelProvider"].(string), fc.Args["input"].(string))
+		return ec.resolvers.Mutation().CreateFlow(rctx, fc.Args["modelProvider"].(string), fc.Args["input"].(string), fc.Args["hitlMode"].(*model.HITLMode), fc.Args["hitlMinRisk"].(*model.RiskClass))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -39814,6 +39868,22 @@ func (ec *executionContext) marshalOFlowTemplate2ᚖpentagiᚋpkgᚋgraphᚋmode
 	return ec._FlowTemplate(ctx, sel, v)
 }
 
+func (ec *executionContext) unmarshalOHITLMode2ᚖpentagiᚋpkgᚋgraphᚋmodelᚐHITLMode(ctx context.Context, v interface{}) (*model.HITLMode, error) {
+	if v == nil {
+		return nil, nil
+	}
+	var res = new(model.HITLMode)
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOHITLMode2ᚖpentagiᚋpkgᚋgraphᚋmodelᚐHITLMode(ctx context.Context, sel ast.SelectionSet, v *model.HITLMode) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return v
+}
+
 func (ec *executionContext) unmarshalOID2ᚖint64(ctx context.Context, v interface{}) (*int64, error) {
 	if v == nil {
 		return nil, nil
@@ -40050,6 +40120,22 @@ func (ec *executionContext) unmarshalOReasoningEffort2ᚖpentagiᚋpkgᚋgraph�
 }
 
 func (ec *executionContext) marshalOReasoningEffort2ᚖpentagiᚋpkgᚋgraphᚋmodelᚐReasoningEffort(ctx context.Context, sel ast.SelectionSet, v *model.ReasoningEffort) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return v
+}
+
+func (ec *executionContext) unmarshalORiskClass2ᚖpentagiᚋpkgᚋgraphᚋmodelᚐRiskClass(ctx context.Context, v interface{}) (*model.RiskClass, error) {
+	if v == nil {
+		return nil, nil
+	}
+	var res = new(model.RiskClass)
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalORiskClass2ᚖpentagiᚋpkgᚋgraphᚋmodelᚐRiskClass(ctx context.Context, sel ast.SelectionSet, v *model.RiskClass) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}

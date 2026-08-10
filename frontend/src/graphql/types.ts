@@ -438,6 +438,8 @@ export type MutationCreateAssistantArgs = {
 };
 
 export type MutationCreateFlowArgs = {
+    hitlMinRisk?: InputMaybe<RiskClass>;
+    hitlMode?: InputMaybe<HitlMode>;
     input: Scalars['String']['input'];
     modelProvider: Scalars['String']['input'];
 };
@@ -1832,6 +1834,8 @@ export type DeleteFlowTemplateMutation = { deleteFlowTemplate: ResultType };
 export type CreateFlowMutationVariables = Exact<{
     modelProvider: Scalars['String']['input'];
     input: Scalars['String']['input'];
+    hitlMode?: InputMaybe<HitlMode>;
+    hitlMinRisk?: InputMaybe<RiskClass>;
 }>;
 
 export type CreateFlowMutation = { createFlow: FlowFragmentFragment };
@@ -5144,8 +5148,8 @@ export type DeleteFlowTemplateMutationOptions = Apollo.BaseMutationOptions<
     DeleteFlowTemplateMutationVariables
 >;
 export const CreateFlowDocument = gql`
-    mutation createFlow($modelProvider: String!, $input: String!) {
-        createFlow(modelProvider: $modelProvider, input: $input) {
+    mutation createFlow($modelProvider: String!, $input: String!, $hitlMode: HITLMode, $hitlMinRisk: RiskClass) {
+        createFlow(modelProvider: $modelProvider, input: $input, hitlMode: $hitlMode, hitlMinRisk: $hitlMinRisk) {
             ...flowFragment
         }
     }
@@ -5168,6 +5172,8 @@ export type CreateFlowMutationFn = Apollo.MutationFunction<CreateFlowMutation, C
  *   variables: {
  *      modelProvider: // value for 'modelProvider'
  *      input: // value for 'input'
+ *      hitlMode: // value for 'hitlMode'
+ *      hitlMinRisk: // value for 'hitlMinRisk'
  *   },
  * });
  */

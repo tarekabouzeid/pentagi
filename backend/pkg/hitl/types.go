@@ -52,25 +52,35 @@ const (
 
 // Config holds the HITL configuration for a flow.
 type Config struct {
-	Mode             Mode      `json:"mode"`
-	RiskTools        []string  `json:"risk_tools,omitempty"`
-	ApprovalTimeout  int       `json:"approval_timeout_seconds,omitempty"` // 0 = no timeout
-	OnTimeout        OnTimeout `json:"on_timeout,omitempty"`
-	AllowEdit        bool      `json:"allow_edit,omitempty"`
-	MaxDenials       int       `json:"max_denials,omitempty"` // consecutive denials before auto-pause
-	ExecutorBackend  string    `json:"executor_backend,omitempty"`
+	Mode            Mode      `json:"mode"`
+	MinRisk         RiskClass `json:"min_risk,omitempty"` // minimum risk class that requires approval in risk_classified mode
+	RiskTools       []string  `json:"risk_tools,omitempty"`
+	ApprovalTimeout int       `json:"approval_timeout_seconds,omitempty"` // 0 = no timeout
+	OnTimeout       OnTimeout `json:"on_timeout,omitempty"`
+	AllowEdit       bool      `json:"allow_edit,omitempty"`
+	MaxDenials      int       `json:"max_denials,omitempty"` // consecutive denials before auto-pause
+	ExecutorBackend string    `json:"executor_backend,omitempty"`
 }
 
 // DefaultConfig returns the default HITL configuration.
 func DefaultConfig() Config {
 	return Config{
 		Mode:            ModeRiskClassified,
+		MinRisk:         RiskMedium,
 		ApprovalTimeout: 300, // 5 minutes
 		OnTimeout:       OnTimeoutDeny,
 		AllowEdit:       true,
 		MaxDenials:      3,
 		ExecutorBackend: "docker",
 	}
+}
+
+// riskOrdinal orders risk classes from least to most severe for MinRisk comparisons.
+var riskOrdinal = map[RiskClass]int{
+	RiskLow:     0,
+	RiskMedium:  1,
+	RiskHigh:    2,
+	RiskBlocked: 3,
 }
 
 // ApprovalRequest represents a pending approval for a tool call.
@@ -116,8 +126,12 @@ func RequiresApproval(cfg Config, toolName string, risk RiskClass) bool {
 			}
 			return false
 		}
-		// Otherwise, medium and above require approval
-		return risk == RiskMedium || risk == RiskHigh || risk == RiskBlocked
+		// Otherwise, risk classes at or above MinRisk require approval
+		minRisk := cfg.MinRisk
+		if minRisk == "" {
+			minRisk = RiskMedium
+		}
+		return riskOrdinal[risk] >= riskOrdinal[minRisk]
 	default:
 		return false
 	}

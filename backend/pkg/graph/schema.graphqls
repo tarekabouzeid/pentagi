@@ -897,7 +897,7 @@ type Query {
 
 type Mutation {
   # Flow management
-  createFlow(modelProvider: String!, input: String!): Flow!
+  createFlow(modelProvider: String!, input: String!, hitlMode: HITLMode, hitlMinRisk: RiskClass): Flow!
   putUserInput(flowId: ID!, input: String!, modelProvider: String): ResultType!
   stopFlow(flowId: ID!): ResultType!
   finishFlow(flowId: ID!): ResultType!

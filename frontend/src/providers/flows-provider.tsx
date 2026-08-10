@@ -2,10 +2,12 @@ import { NetworkStatus } from '@apollo/client';
 import { createContext, useCallback, useContext, useEffect, useMemo } from 'react';
 import { toast } from 'sonner';
 
-import type { FlowFormValues } from '@/features/flows/flow-form';
+import type { AutonomyLevel, FlowFormValues } from '@/features/flows/flow-form';
 import type { FlowFragmentFragment, FlowsQuery } from '@/graphql/types';
 
 import {
+    HitlMode,
+    RiskClass,
     useCreateAssistantMutation,
     useCreateFlowMutation,
     useDeleteFlowMutation,
@@ -18,6 +20,15 @@ import {
 import { Log } from '@/lib/log';
 
 export type Flow = FlowFragmentFragment;
+
+// Maps the friendly autonomy level chosen at flow creation to the HITL gate config.
+// 'balanced' maps to no override, relying on the backend's default (risk_classified/medium).
+const AUTONOMY_LEVEL_TO_HITL: Record<AutonomyLevel, { hitlMinRisk?: RiskClass; hitlMode?: HitlMode }> = {
+    autonomous: { hitlMode: HitlMode.PolicyOnly },
+    balanced: {},
+    full_control: { hitlMode: HitlMode.PerTool },
+    high_risk_only: { hitlMinRisk: RiskClass.High, hitlMode: HitlMode.RiskClassified },
+};
 
 interface FlowsContextValue {
     createFlow: (values: FlowFormValues) => Promise<null | string>;
@@ -72,7 +83,7 @@ export const FlowsProvider = ({ children }: FlowsProviderProps) => {
 
     const createFlow = useCallback(
         async (values: FlowFormValues) => {
-            const { message, providerName } = values;
+            const { autonomyLevel, message, providerName } = values;
 
             const input = message.trim();
             const modelProvider = providerName.trim();
@@ -81,9 +92,13 @@ export const FlowsProvider = ({ children }: FlowsProviderProps) => {
                 return null;
             }
 
+            const { hitlMinRisk, hitlMode } = AUTONOMY_LEVEL_TO_HITL[autonomyLevel];
+
             try {
                 const { data } = await createFlowMutation({
                     variables: {
+                        hitlMinRisk,
+                        hitlMode,
                         input,
                         modelProvider,
                     },

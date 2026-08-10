@@ -73,25 +73,57 @@ func TestRequiresApproval(t *testing.T) {
 		name     string
 		mode     Mode
 		tools    []string
+		minRisk  RiskClass
 		toolName string
 		risk     RiskClass
 		expected bool
 	}{
-		{"policy_only never requires", ModePolicyOnly, nil, "terminal", RiskHigh, false},
-		{"per_tool always requires", ModePerTool, nil, "terminal", RiskLow, true},
-		{"risk_classified low skip", ModeRiskClassified, nil, "terminal", RiskLow, false},
-		{"risk_classified medium needs", ModeRiskClassified, nil, "terminal", RiskMedium, true},
-		{"risk_classified high needs", ModeRiskClassified, nil, "terminal", RiskHigh, true},
-		{"risk_classified with tools list match", ModeRiskClassified, []string{"terminal"}, "terminal", RiskLow, true},
-		{"risk_classified with tools list no match", ModeRiskClassified, []string{"terminal"}, "file", RiskHigh, false},
+		{"policy_only never requires", ModePolicyOnly, nil, "", "terminal", RiskHigh, false},
+		{"per_tool always requires", ModePerTool, nil, "", "terminal", RiskLow, true},
+		{"risk_classified low skip", ModeRiskClassified, nil, "", "terminal", RiskLow, false},
+		{"risk_classified medium needs", ModeRiskClassified, nil, "", "terminal", RiskMedium, true},
+		{"risk_classified high needs", ModeRiskClassified, nil, "", "terminal", RiskHigh, true},
+		{"risk_classified with tools list match", ModeRiskClassified, []string{"terminal"}, "", "terminal", RiskLow, true},
+		{"risk_classified with tools list no match", ModeRiskClassified, []string{"terminal"}, "", "file", RiskHigh, false},
+		{"risk_classified min_risk high skips medium", ModeRiskClassified, nil, RiskHigh, "terminal", RiskMedium, false},
+		{"risk_classified min_risk high needs high", ModeRiskClassified, nil, RiskHigh, "terminal", RiskHigh, true},
+		{"risk_classified min_risk low needs medium", ModeRiskClassified, nil, RiskLow, "terminal", RiskMedium, true},
+		{"risk_classified empty min_risk defaults to medium", ModeRiskClassified, nil, "", "terminal", RiskLow, false},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := Config{Mode: tt.mode, RiskTools: tt.tools}
+			cfg := Config{Mode: tt.mode, RiskTools: tt.tools, MinRisk: tt.minRisk}
 			got := RequiresApproval(cfg, tt.toolName, tt.risk)
 			if got != tt.expected {
 				t.Errorf("RequiresApproval(%s, %s, %s) = %v, want %v", tt.mode, tt.toolName, tt.risk, got, tt.expected)
+			}
+		})
+	}
+}
+
+// TestAutonomyPresets verifies the 4 friendly autonomy presets exposed at flow creation.
+func TestAutonomyPresets(t *testing.T) {
+	tests := []struct {
+		name     string
+		cfg      Config
+		risk     RiskClass
+		expected bool
+	}{
+		{"fully autonomous: low", Config{Mode: ModePolicyOnly}, RiskLow, false},
+		{"fully autonomous: high", Config{Mode: ModePolicyOnly}, RiskHigh, false},
+		{"only high-risk: medium skipped", Config{Mode: ModeRiskClassified, MinRisk: RiskHigh}, RiskMedium, false},
+		{"only high-risk: high needs approval", Config{Mode: ModeRiskClassified, MinRisk: RiskHigh}, RiskHigh, true},
+		{"balanced: low skipped", Config{Mode: ModeRiskClassified, MinRisk: RiskMedium}, RiskLow, false},
+		{"balanced: medium needs approval", Config{Mode: ModeRiskClassified, MinRisk: RiskMedium}, RiskMedium, true},
+		{"full control: low needs approval", Config{Mode: ModePerTool, MinRisk: RiskMedium}, RiskLow, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := RequiresApproval(tt.cfg, "terminal", tt.risk)
+			if got != tt.expected {
+				t.Errorf("RequiresApproval(%+v, terminal, %s) = %v, want %v", tt.cfg, tt.risk, got, tt.expected)
 			}
 		})
 	}
@@ -102,6 +134,9 @@ func TestParseConfig(t *testing.T) {
 		cfg := ParseConfig(nil)
 		if cfg.Mode != ModeRiskClassified {
 			t.Errorf("expected default mode risk_classified, got %s", cfg.Mode)
+		}
+		if cfg.MinRisk != RiskMedium {
+			t.Errorf("expected default min_risk medium, got %s", cfg.MinRisk)
 		}
 		if cfg.MaxDenials != 3 {
 			t.Errorf("expected default max_denials 3, got %d", cfg.MaxDenials)
@@ -119,6 +154,14 @@ func TestParseConfig(t *testing.T) {
 		}
 		if cfg.MaxDenials != 5 {
 			t.Errorf("expected max_denials 5, got %d", cfg.MaxDenials)
+		}
+	})
+
+	t.Run("custom min_risk preserved", func(t *testing.T) {
+		raw := json.RawMessage(`{"hitl":{"mode":"risk_classified","min_risk":"high"}}`)
+		cfg := ParseConfig(raw)
+		if cfg.MinRisk != RiskHigh {
+			t.Errorf("expected min_risk high, got %s", cfg.MinRisk)
 		}
 	})
 
