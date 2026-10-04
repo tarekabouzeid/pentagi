@@ -21,8 +21,8 @@ type Store interface {
 	GetToolApproval(ctx context.Context, id int64) (database.ToolApproval, error)
 	GetFlowToolApprovals(ctx context.Context, flowID int64) ([]database.ToolApproval, error)
 	GetFlowPendingToolApprovals(ctx context.Context, flowID int64) ([]database.ToolApproval, error)
-	GetAllPendingToolApprovals(ctx context.Context) ([]database.ToolApproval, error)
 	CancelFlowPendingToolApprovals(ctx context.Context, arg database.CancelFlowPendingToolApprovalsParams) ([]database.ToolApproval, error)
+	CancelPendingToolApprovals(ctx context.Context, reason string) ([]database.ToolApproval, error)
 	CountFlowTrailingDenials(ctx context.Context, flowID int64) (int64, error)
 }
 
@@ -48,8 +48,15 @@ type Dispatcher struct {
 	logger *logrus.Entry
 
 	mx      sync.Mutex
-	waiters map[int64]chan database.ToolApproval
+	waiters map[int64]waiter
 	pauser  FlowPauser
+}
+
+// waiter is an agent blocked on one request, with the edit rule of its flow's
+// policy so a decision can be checked against it before it is recorded.
+type waiter struct {
+	ch        chan database.ToolApproval
+	allowEdit bool
 }
 
 func NewDispatcher(store Store, pub Publisher) *Dispatcher {
@@ -57,7 +64,7 @@ func NewDispatcher(store Store, pub Publisher) *Dispatcher {
 		store:   store,
 		pub:     pub,
 		logger:  logrus.WithField("component", "hitl"),
-		waiters: make(map[int64]chan database.ToolApproval),
+		waiters: make(map[int64]waiter),
 	}
 }
 
@@ -83,6 +90,15 @@ func (d *Dispatcher) Decide(
 	case DecisionApproved, DecisionDenied, DecisionEdited:
 	default:
 		return database.ToolApproval{}, fmt.Errorf("an operator decision must be approved, denied or edited, not %q", decision)
+	}
+
+	if decision == DecisionEdited {
+		d.mx.Lock()
+		w, waiting := d.waiters[approvalID]
+		d.mx.Unlock()
+		if waiting && !w.allowEdit {
+			return database.ToolApproval{}, errors.New("this flow's policy does not allow edited arguments")
+		}
 	}
 
 	params := database.DecideToolApprovalParams{
@@ -112,20 +128,20 @@ func (d *Dispatcher) Decide(
 // wake hands the decided row to the blocked agent, if one is still waiting.
 func (d *Dispatcher) wake(approval database.ToolApproval) {
 	d.mx.Lock()
-	ch, ok := d.waiters[approval.ID]
+	w, ok := d.waiters[approval.ID]
 	if ok {
 		delete(d.waiters, approval.ID)
 	}
 	d.mx.Unlock()
 	if ok {
-		ch <- approval
+		w.ch <- approval
 	}
 }
 
-func (d *Dispatcher) register(id int64) chan database.ToolApproval {
+func (d *Dispatcher) register(id int64, allowEdit bool) chan database.ToolApproval {
 	ch := make(chan database.ToolApproval, 1)
 	d.mx.Lock()
-	d.waiters[id] = ch
+	d.waiters[id] = waiter{ch: ch, allowEdit: allowEdit}
 	d.mx.Unlock()
 	return ch
 }
@@ -136,18 +152,19 @@ func (d *Dispatcher) forget(id int64) {
 	d.mx.Unlock()
 }
 
-// RestorePending re-announces the requests left pending by a restart, so the
-// operator sees them again even though the agents that asked are gone.
-func (d *Dispatcher) RestorePending(ctx context.Context) error {
-	pending, err := d.store.GetAllPendingToolApprovals(ctx)
+// CancelOrphaned closes the requests left pending by a previous process. The
+// agents that were blocked on them died with it, so a decision would wake
+// nobody; the restored flow asks again if it still needs the call.
+func (d *Dispatcher) CancelOrphaned(ctx context.Context) error {
+	cancelled, err := d.store.CancelPendingToolApprovals(ctx, "the server restarted while this request was waiting")
 	if err != nil {
-		return fmt.Errorf("failed to read pending approvals: %w", err)
+		return fmt.Errorf("failed to cancel orphaned approvals: %w", err)
 	}
-	for _, approval := range pending {
-		d.pub.ToolApprovalRequested(ctx, approval)
+	for _, approval := range cancelled {
+		d.pub.ToolApprovalUpdated(ctx, approval)
 	}
-	if len(pending) > 0 {
-		d.logger.WithField("count", len(pending)).Info("re-announced pending tool approvals after restart")
+	if len(cancelled) > 0 {
+		d.logger.WithField("count", len(cancelled)).Info("cancelled tool approvals orphaned by a restart")
 	}
 	return nil
 }
@@ -203,7 +220,7 @@ func (d *Dispatcher) evaluate(ctx context.Context, flowID int64, cfg Config, req
 		return nil, fmt.Errorf("failed to record the approval request: %w", err)
 	}
 
-	ch := d.register(created.ID)
+	ch := d.register(created.ID, cfg.AllowEdit)
 	d.pub.ToolApprovalRequested(context.WithoutCancel(ctx), created)
 
 	decided, err := d.await(ctx, cfg, created.ID, ch)
@@ -233,8 +250,25 @@ func (d *Dispatcher) await(
 		return d.onTimeout(ctx, cfg, approvalID)
 	case <-ctx.Done():
 		d.forget(approvalID)
+		d.cancelAbandoned(ctx, approvalID)
 		return database.ToolApproval{}, ctx.Err()
 	}
+}
+
+// cancelAbandoned closes a request whose agent stopped waiting because its
+// chain was cancelled, so the operator is not left to decide a dead request.
+func (d *Dispatcher) cancelAbandoned(ctx context.Context, approvalID int64) {
+	persistCtx := context.WithoutCancel(ctx)
+	updated, err := d.store.DecideToolApproval(persistCtx, database.DecideToolApprovalParams{
+		ID:       approvalID,
+		Decision: database.ToolApprovalDecisionCancelled,
+		Reason:   "the agent stopped waiting for this request",
+	})
+	if err != nil {
+		// Already decided, or the store is down; nothing more to close.
+		return
+	}
+	d.pub.ToolApprovalUpdated(persistCtx, updated)
 }
 
 // onTimeout records the configured timeout outcome on a request nobody decided.

@@ -48,6 +48,13 @@ const (
 const blockedByOperatorTemplate = "[BLOCKED BY OPERATOR] the tool call '%s' was not executed: %v. " +
 	"Do not retry it as-is; choose a different, safer approach or explain why you cannot proceed."
 
+// pausedByOperatorTemplate is the refusal once the operator has paused the flow
+// by denying calls in a row. The chain is not cancelled from here, so the
+// refusal is what tells the model to stop.
+const pausedByOperatorTemplate = "[PAUSED BY OPERATOR] the tool call '%s' was not executed: the operator denied " +
+	"several calls in a row and paused this flow. Make no further tool calls: summarize what you have done and " +
+	"what you still need, then wait for the operator's instructions."
+
 // ErrAgentModelCall marks failures while obtaining a usable model response.
 // Persistence and tool execution errors deliberately do not carry this marker:
 // callers may fall back from an optional model step only when the saved plan is
@@ -370,7 +377,10 @@ func (fp *flowProvider) execToolCall(
 			Args:          funcArgs,
 		})
 		switch {
-		case errors.Is(gateErr, hitl.ErrDenied), errors.Is(gateErr, hitl.ErrTimeout), errors.Is(gateErr, hitl.ErrPaused):
+		case errors.Is(gateErr, hitl.ErrPaused):
+			logger.Warn("tool call refused: the operator paused the flow")
+			return fmt.Sprintf(pausedByOperatorTemplate, funcName), nil
+		case errors.Is(gateErr, hitl.ErrDenied), errors.Is(gateErr, hitl.ErrTimeout):
 			logger.WithField("reason", gateErr.Error()).Warn("tool call blocked by operator")
 			return fmt.Sprintf(blockedByOperatorTemplate, funcName, gateErr), nil
 		case gateErr != nil:

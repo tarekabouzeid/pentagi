@@ -191,3 +191,39 @@ func TestRouter_SetKnowledgeGroup_RefusesAMissingPrivilege(t *testing.T) {
 		})
 	}
 }
+
+func TestRouter_SetHITLGroup_RefusesAMissingPrivilege(t *testing.T) {
+	cases := []struct {
+		name   string
+		method string
+		path   string
+		priv   string
+	}{
+		{"list", http.MethodGet, "/flows/5/approvals/", "flows.view"},
+		{"decide", http.MethodPost, "/flows/5/approvals/7/decide", "flows.edit"},
+	}
+
+	every := []string{"flows.view", "flows.edit"}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			granted := []string{}
+			for _, priv := range every {
+				if priv != tc.priv {
+					granted = append(granted, priv)
+				}
+			}
+
+			gin.SetMode(gin.TestMode)
+			engine := gin.New()
+			engine.Use(gin.Recovery(), func(c *gin.Context) { c.Set("prm", granted) })
+			setHITLGroup(engine.Group(""), nil)
+
+			rec := httptest.NewRecorder()
+			engine.ServeHTTP(rec, httptest.NewRequest(tc.method, tc.path, nil))
+
+			assert.Equal(t, http.StatusForbidden, rec.Code,
+				"a caller holding every flow privilege but %s reached %s %s", tc.priv, tc.method, tc.path)
+		})
+	}
+}

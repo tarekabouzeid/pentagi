@@ -18,6 +18,7 @@ import (
 	"pentagi/pkg/csum"
 	"pentagi/pkg/database"
 	"pentagi/pkg/graphiti"
+	"pentagi/pkg/hitl"
 	"pentagi/pkg/providers/anthropic"
 	"pentagi/pkg/providers/bedrock"
 	"pentagi/pkg/providers/pconfig"
@@ -642,6 +643,7 @@ type performerExecutor struct {
 
 	err   error
 	calls int
+	args  []json.RawMessage
 }
 
 // errPerformerNoSchema makes a call that reaches argument correction fail on its own error instead of a nil dereference.
@@ -652,9 +654,10 @@ func (e *performerExecutor) GetToolSchema(string) (*schema.Schema, error) {
 }
 
 func (e *performerExecutor) Execute(
-	context.Context, int64, string, string, string, string, json.RawMessage,
+	_ context.Context, _ int64, _, _, _, _ string, args json.RawMessage,
 ) (string, error) {
 	e.calls++
+	e.args = append(e.args, args)
 	if e.err != nil {
 		return "", e.err
 	}
@@ -700,6 +703,123 @@ func TestPerformer_ExecToolCall_AnswersARepeatWithWhatTheToolSaidUntilItAborts(t
 	_, err := call()
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "repeated 7 times consecutively, aborting chain")
+}
+
+// performerGate answers every request with res or err and keeps the request it was asked about.
+type performerGate struct {
+	res *hitl.Resolution
+	err error
+	got *hitl.Request
+}
+
+func (g *performerGate) Evaluate(_ context.Context, req *hitl.Request) (*hitl.Resolution, error) {
+	g.got = req
+
+	return g.res, g.err
+}
+
+func TestPerformer_ExecToolCall_RunsTheCallWithWhatTheOperatorDecided(t *testing.T) {
+	const original = `{"question":"scan"}`
+	const edited = `{"question":"scan politely"}`
+
+	tests := []struct {
+		name     string
+		gate     *performerGate
+		wantArgs string
+	}{
+		{"approved runs the original", &performerGate{res: &hitl.Resolution{Decision: hitl.DecisionApproved, Args: json.RawMessage(original)}}, original},
+		{"edited runs the operator's arguments", &performerGate{res: &hitl.Resolution{Decision: hitl.DecisionEdited, Args: json.RawMessage(edited)}}, edited},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fp := newFlowProvider()
+			fp.Provider = mock.NewProvider(provider.ProviderOpenAI, "openai", "gpt-5.6-sol")
+			fp.SetHITLGate(tt.gate)
+			executor := &performerExecutor{}
+
+			answer, err := fp.execToolCall(
+				context.Background(), pconfig.OptionsTypePentester, 1, 0, performerToolCallResult(),
+				&executionMonitor{}, &repeatingDetector{}, executor, nil, nil, nil,
+			)
+
+			require.NoError(t, err)
+			assert.Equal(t, performerNotFound, answer)
+			require.Len(t, executor.args, 1)
+			assert.JSONEq(t, tt.wantArgs, string(executor.args[0]))
+		})
+	}
+}
+
+func TestPerformer_ExecToolCall_TellsTheModelWhyARefusedCallDidNotRun(t *testing.T) {
+	tests := []struct {
+		name    string
+		err     error
+		wantAll []string
+	}{
+		{"a denial", hitl.ErrDenied, []string{"[BLOCKED BY OPERATOR]", "execute_task_and_return_summary", "denied by operator"}},
+		{"a timeout", hitl.ErrTimeout, []string{"[BLOCKED BY OPERATOR]", "timed out"}},
+		{"a spent denial budget", hitl.ErrPaused, []string{"[PAUSED BY OPERATOR]", "Make no further tool calls"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fp := newFlowProvider()
+			fp.Provider = mock.NewProvider(provider.ProviderOpenAI, "openai", "gpt-5.6-sol")
+			fp.SetHITLGate(&performerGate{err: fmt.Errorf("gate: %w", tt.err)})
+			executor := &performerExecutor{}
+
+			answer, err := fp.execToolCall(
+				context.Background(), pconfig.OptionsTypePentester, 1, 0, performerToolCallResult(),
+				&executionMonitor{}, &repeatingDetector{}, executor, nil, nil, nil,
+			)
+
+			require.NoError(t, err, "a refusal is an answer the model reads, not a failure of the chain")
+			for _, want := range tt.wantAll {
+				assert.Contains(t, answer, want)
+			}
+			assert.Zero(t, executor.calls, "a refused call must never reach the tool")
+		})
+	}
+}
+
+func TestPerformer_ExecToolCall_FailsTheChainWhenTheGateItselfFails(t *testing.T) {
+	broken := errors.New("approval store is down")
+	fp := newFlowProvider()
+	fp.Provider = mock.NewProvider(provider.ProviderOpenAI, "openai", "gpt-5.6-sol")
+	fp.SetHITLGate(&performerGate{err: broken})
+	executor := &performerExecutor{}
+
+	_, err := fp.execToolCall(
+		context.Background(), pconfig.OptionsTypePentester, 1, 0, performerToolCallResult(),
+		&executionMonitor{}, &repeatingDetector{}, executor, nil, nil, nil,
+	)
+
+	require.ErrorIs(t, err, broken)
+	assert.Zero(t, executor.calls, "an unanswerable gate must not let the call through")
+}
+
+func TestPerformer_ExecToolCall_AsksTheGateAboutTheCallAndWhoMadeIt(t *testing.T) {
+	gate := &performerGate{res: &hitl.Resolution{Decision: hitl.DecisionApproved, Args: json.RawMessage(`{}`)}}
+	fp := newFlowProvider()
+	fp.Provider = mock.NewProvider(provider.ProviderOpenAI, "openai", "gpt-5.6-sol")
+	fp.SetHITLGate(gate)
+	taskID, subtaskID := int64(11), int64(12)
+	ctx := tools.PutAgentContext(context.Background(), database.MsgchainTypePentester)
+
+	_, err := fp.execToolCall(
+		ctx, pconfig.OptionsTypePentester, 1, 0, performerToolCallResult(),
+		&executionMonitor{}, &repeatingDetector{}, &performerExecutor{}, &taskID, &subtaskID, nil,
+	)
+
+	require.NoError(t, err)
+	require.NotNil(t, gate.got)
+	assert.Equal(t, "call_1", gate.got.ToolCallID)
+	assert.Equal(t, "execute_task_and_return_summary", gate.got.ToolName)
+	assert.Equal(t, database.MsgchainTypePentester, gate.got.Agent)
+	assert.Equal(t, &taskID, gate.got.TaskID)
+	assert.Equal(t, &subtaskID, gate.got.SubtaskID)
+	assert.False(t, gate.got.IsEnvironment, "an agent-delegation tool is not a sandbox tool")
 }
 
 func TestPerformer_ExecToolCall_ReturnsAnErrorNoCorrectionCanFixAtOnce(t *testing.T) {

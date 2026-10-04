@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -76,8 +77,18 @@ func (m *memStore) GetFlowPendingToolApprovals(ctx context.Context, flowID int64
 	}), nil
 }
 
-func (m *memStore) GetAllPendingToolApprovals(ctx context.Context) ([]database.ToolApproval, error) {
-	return m.filter(func(r *database.ToolApproval) bool { return r.Decision == database.ToolApprovalDecisionPending }), nil
+func (m *memStore) CancelPendingToolApprovals(ctx context.Context, reason string) ([]database.ToolApproval, error) {
+	m.mx.Lock()
+	defer m.mx.Unlock()
+	var out []database.ToolApproval
+	for _, r := range m.rows {
+		if r.Decision == database.ToolApprovalDecisionPending {
+			r.Decision = database.ToolApprovalDecisionCancelled
+			r.Reason = reason
+			out = append(out, *r)
+		}
+	}
+	return out, nil
 }
 
 func (m *memStore) CancelFlowPendingToolApprovals(ctx context.Context, arg database.CancelFlowPendingToolApprovalsParams) ([]database.ToolApproval, error) {
@@ -287,7 +298,7 @@ func TestDispatcher_Evaluate_AppliesTheTimeoutOutcome(t *testing.T) {
 }
 
 func TestDispatcher_Evaluate_ReleasesABlockedCallWhenItsContextEnds(t *testing.T) {
-	d, _, _ := newDispatcher(t)
+	d, store, pub := newDispatcher(t)
 	gate := d.GateFor(testFlowID, Config{Mode: ModeAllTools})
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -306,6 +317,13 @@ func TestDispatcher_Evaluate_ReleasesABlockedCallWhenItsContextEnds(t *testing.T
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("a cancelled evaluate never returned")
+	}
+
+	if pending, _ := store.GetFlowPendingToolApprovals(context.Background(), testFlowID); len(pending) != 0 {
+		t.Fatalf("%d request(s) still pending after the agent stopped waiting, want none", len(pending))
+	}
+	if len(pub.updated) != 1 || pub.updated[0].Decision != database.ToolApprovalDecisionCancelled {
+		t.Fatalf("announced %+v, want the request reported cancelled", pub.updated)
 	}
 }
 
@@ -376,18 +394,75 @@ func TestDispatcher_CancelFlow_RefusesAndWakesEveryPendingCall(t *testing.T) {
 	}
 }
 
-func TestDispatcher_RestorePending_ReannouncesEveryPendingRow(t *testing.T) {
+func TestDispatcher_CancelOrphaned_ClosesEveryPendingRowAndTellsTheOperator(t *testing.T) {
 	store := newMemStore()
 	pub := &capturePublisher{}
 	d := NewDispatcher(store, pub)
 
-	_, _ = store.CreateToolApproval(context.Background(), database.CreateToolApprovalParams{FlowID: testFlowID, Agent: database.MsgchainTypePentester, ToolCallID: "a", ToolName: "terminal", Args: json.RawMessage(`{}`), RiskClass: database.ToolRiskClassHigh})
-	_, _ = store.CreateToolApproval(context.Background(), database.CreateToolApprovalParams{FlowID: testFlowID, Agent: database.MsgchainTypePentester, ToolCallID: "b", ToolName: "terminal", Args: json.RawMessage(`{}`), RiskClass: database.ToolRiskClassHigh})
-
-	if err := d.RestorePending(context.Background()); err != nil {
-		t.Fatalf("restore: %v", err)
+	first, _ := store.CreateToolApproval(context.Background(), database.CreateToolApprovalParams{FlowID: testFlowID, Agent: database.MsgchainTypePentester, ToolCallID: "a", ToolName: "terminal", Args: json.RawMessage(`{}`), RiskClass: database.ToolRiskClassHigh})
+	decided, _ := store.CreateToolApproval(context.Background(), database.CreateToolApprovalParams{FlowID: testFlowID, Agent: database.MsgchainTypePentester, ToolCallID: "b", ToolName: "terminal", Args: json.RawMessage(`{}`), RiskClass: database.ToolRiskClassHigh})
+	if _, err := store.DecideToolApproval(context.Background(), database.DecideToolApprovalParams{ID: decided.ID, Decision: database.ToolApprovalDecisionApproved}); err != nil {
+		t.Fatalf("decide: %v", err)
 	}
-	if len(pub.requested) != 2 {
-		t.Fatalf("re-announced %d, want 2", len(pub.requested))
+
+	if err := d.CancelOrphaned(context.Background()); err != nil {
+		t.Fatalf("cancel orphaned: %v", err)
+	}
+
+	if got, _ := store.GetToolApproval(context.Background(), first.ID); got.Decision != database.ToolApprovalDecisionCancelled {
+		t.Fatalf("the orphan is %q, want cancelled", got.Decision)
+	}
+	if got, _ := store.GetToolApproval(context.Background(), decided.ID); got.Decision != database.ToolApprovalDecisionApproved {
+		t.Fatalf("an already decided row became %q, want it left approved", got.Decision)
+	}
+	if len(pub.updated) != 1 || pub.updated[0].ID != first.ID {
+		t.Fatalf("announced %+v, want exactly the cancelled orphan", pub.updated)
+	}
+}
+
+func TestDispatcher_Decide_RefusesAnEditTheFlowsPolicyDoesNotAllow(t *testing.T) {
+	d, store, _ := newDispatcher(t)
+	gate := d.GateFor(testFlowID, Config{Mode: ModeAllTools, AllowEdit: false})
+
+	waiting := make(chan error, 1)
+	go func() {
+		_, err := gate.Evaluate(context.Background(), req("terminal", `{"input":"nmap t"}`))
+		waiting <- err
+	}()
+
+	var id int64
+	deadline := time.After(2 * time.Second)
+	for id == 0 {
+		if pending, _ := store.GetFlowPendingToolApprovals(context.Background(), testFlowID); len(pending) == 1 {
+			id = pending[0].ID
+			break
+		}
+		select {
+		case <-deadline:
+			t.Fatal("no approval became pending")
+		default:
+			time.Sleep(time.Millisecond)
+		}
+	}
+
+	_, err := d.Decide(context.Background(), id, DecisionEdited, json.RawMessage(`{"input":"id"}`), "", 1)
+	if err == nil || !strings.Contains(err.Error(), "does not allow edited arguments") {
+		t.Fatalf("Decide(edited) = %v, want a refusal naming the policy", err)
+	}
+	if got, _ := store.GetToolApproval(context.Background(), id); got.Decision != database.ToolApprovalDecisionPending {
+		t.Fatalf("the refused edit left the request %q, want it still pending", got.Decision)
+	}
+
+	// The operator can still settle it, and the agent is released.
+	if _, err := d.Decide(context.Background(), id, DecisionDenied, nil, "no edits here", 1); err != nil {
+		t.Fatalf("deny: %v", err)
+	}
+	select {
+	case err := <-waiting:
+		if !errors.Is(err, ErrDenied) {
+			t.Fatalf("agent got %v, want ErrDenied", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("the agent was never released")
 	}
 }

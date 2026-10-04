@@ -250,11 +250,14 @@ func main() {
 	flowController := controller.NewFlowController(queries, cfg, sandboxes, providers, subscriptions, hitlDispatcher)
 	hitlDispatcher.SetPauser(flowController)
 
+	// Before the flows restart: a restored task can raise a new request at once,
+	// and the sweep must only close the ones the previous process left behind.
+	if err := hitlDispatcher.CancelOrphaned(ctx); err != nil {
+		logrus.WithError(err).Warn("failed to cancel tool approvals orphaned by the restart")
+	}
+
 	if err := flowController.LoadFlows(ctx); err != nil {
 		logrus.WithError(err).Fatal("Active flows restoration failed")
-	}
-	if err := hitlDispatcher.RestorePending(ctx); err != nil {
-		logrus.WithError(err).Warn("failed to re-announce pending tool approvals")
 	}
 
 	r := router.NewRouter(queries, orm, cfg, providers, flowController, subscriptions, sandboxes, hitlDispatcher, updates)
