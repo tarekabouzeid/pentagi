@@ -9,6 +9,7 @@ import (
 	"database/sql/driver"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
@@ -696,6 +697,96 @@ func (ns NullTokenStatus) Value() (driver.Value, error) {
 	return string(ns.TokenStatus), nil
 }
 
+type ToolApprovalDecision string
+
+const (
+	ToolApprovalDecisionPending   ToolApprovalDecision = "pending"
+	ToolApprovalDecisionApproved  ToolApprovalDecision = "approved"
+	ToolApprovalDecisionEdited    ToolApprovalDecision = "edited"
+	ToolApprovalDecisionDenied    ToolApprovalDecision = "denied"
+	ToolApprovalDecisionTimeout   ToolApprovalDecision = "timeout"
+	ToolApprovalDecisionCancelled ToolApprovalDecision = "cancelled"
+)
+
+func (e *ToolApprovalDecision) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ToolApprovalDecision(s)
+	case string:
+		*e = ToolApprovalDecision(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ToolApprovalDecision: %T", src)
+	}
+	return nil
+}
+
+type NullToolApprovalDecision struct {
+	ToolApprovalDecision ToolApprovalDecision `json:"tool_approval_decision"`
+	Valid                bool                 `json:"valid"` // Valid is true if ToolApprovalDecision is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullToolApprovalDecision) Scan(value interface{}) error {
+	if value == nil {
+		ns.ToolApprovalDecision, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ToolApprovalDecision.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullToolApprovalDecision) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ToolApprovalDecision), nil
+}
+
+type ToolRiskClass string
+
+const (
+	ToolRiskClassLow     ToolRiskClass = "low"
+	ToolRiskClassMedium  ToolRiskClass = "medium"
+	ToolRiskClassHigh    ToolRiskClass = "high"
+	ToolRiskClassBlocked ToolRiskClass = "blocked"
+)
+
+func (e *ToolRiskClass) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ToolRiskClass(s)
+	case string:
+		*e = ToolRiskClass(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ToolRiskClass: %T", src)
+	}
+	return nil
+}
+
+type NullToolRiskClass struct {
+	ToolRiskClass ToolRiskClass `json:"tool_risk_class"`
+	Valid         bool          `json:"valid"` // Valid is true if ToolRiskClass is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullToolRiskClass) Scan(value interface{}) error {
+	if value == nil {
+		ns.ToolRiskClass, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ToolRiskClass.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullToolRiskClass) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ToolRiskClass), nil
+}
+
 type ToolcallStatus string
 
 const (
@@ -1095,6 +1186,26 @@ type Termlog struct {
 	FlowID      int64         `json:"flow_id"`
 	TaskID      sql.NullInt64 `json:"task_id"`
 	SubtaskID   sql.NullInt64 `json:"subtask_id"`
+}
+
+type ToolApproval struct {
+	ID          int64                 `json:"id"`
+	FlowID      int64                 `json:"flow_id"`
+	TaskID      sql.NullInt64         `json:"task_id"`
+	SubtaskID   sql.NullInt64         `json:"subtask_id"`
+	AssistantID sql.NullInt64         `json:"assistant_id"`
+	Agent       MsgchainType          `json:"agent"`
+	ToolCallID  string                `json:"tool_call_id"`
+	ToolName    string                `json:"tool_name"`
+	Args        json.RawMessage       `json:"args"`
+	RiskClass   ToolRiskClass         `json:"risk_class"`
+	RiskReason  string                `json:"risk_reason"`
+	Decision    ToolApprovalDecision  `json:"decision"`
+	EditedArgs  pqtype.NullRawMessage `json:"edited_args"`
+	Reason      string                `json:"reason"`
+	DecidedBy   sql.NullInt64         `json:"decided_by"`
+	RequestedAt time.Time             `json:"requested_at"`
+	DecidedAt   sql.NullTime          `json:"decided_at"`
 }
 
 type Toolcall struct {

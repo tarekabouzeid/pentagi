@@ -11,11 +11,15 @@ import (
 
 type Querier interface {
 	AddFavoriteFlow(ctx context.Context, arg AddFavoriteFlowParams) (UserPreference, error)
+	CancelFlowPendingToolApprovals(ctx context.Context, arg CancelFlowPendingToolApprovalsParams) ([]ToolApproval, error)
+	CancelPendingToolApprovals(ctx context.Context, reason string) ([]ToolApproval, error)
 	CountAPITokens(ctx context.Context) (int64, error)
 	CountActiveFlows(ctx context.Context) (int64, error)
 	CountAssistants(ctx context.Context) (int64, error)
 	CountContainers(ctx context.Context) (int64, error)
 	CountFlowTemplates(ctx context.Context) (int64, error)
+	// A denial streak is broken by an approval or an edit, not by a timeout or a cancellation.
+	CountFlowTrailingDenials(ctx context.Context, flowID int64) (int64, error)
 	CountFlows(ctx context.Context) (int64, error)
 	CountPrompts(ctx context.Context) (int64, error)
 	CountSubtasks(ctx context.Context) (int64, error)
@@ -39,11 +43,13 @@ type Querier interface {
 	CreateSubtask(ctx context.Context, arg CreateSubtaskParams) (Subtask, error)
 	CreateTask(ctx context.Context, arg CreateTaskParams) (Task, error)
 	CreateTermLog(ctx context.Context, arg CreateTermLogParams) (Termlog, error)
+	CreateToolApproval(ctx context.Context, arg CreateToolApprovalParams) (ToolApproval, error)
 	CreateToolcall(ctx context.Context, arg CreateToolcallParams) (Toolcall, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	CreateUserPreferences(ctx context.Context, arg CreateUserPreferencesParams) (UserPreference, error)
 	CreateUserPrompt(ctx context.Context, arg CreateUserPromptParams) (Prompt, error)
 	CreateVectorStoreLog(ctx context.Context, arg CreateVectorStoreLogParams) (Vecstorelog, error)
+	DecideToolApproval(ctx context.Context, arg DecideToolApprovalParams) (ToolApproval, error)
 	DeleteAPIToken(ctx context.Context, id int64) (ApiToken, error)
 	DeleteAssistant(ctx context.Context, id int64) (Assistant, error)
 	DeleteFavoriteFlow(ctx context.Context, arg DeleteFavoriteFlowParams) (UserPreference, error)
@@ -102,6 +108,7 @@ type Querier interface {
 	GetFlowContainers(ctx context.Context, flowID int64) ([]Container, error)
 	GetFlowMsgChains(ctx context.Context, flowID int64) ([]Msgchain, error)
 	GetFlowMsgLogs(ctx context.Context, flowID int64) ([]Msglog, error)
+	GetFlowPendingToolApprovals(ctx context.Context, flowID int64) ([]ToolApproval, error)
 	GetFlowPrimaryContainer(ctx context.Context, flowID int64) (Container, error)
 	GetFlowScreenshots(ctx context.Context, flowID int64) ([]Screenshot, error)
 	GetFlowSearchLog(ctx context.Context, arg GetFlowSearchLogParams) (Searchlog, error)
@@ -118,6 +125,7 @@ type Querier interface {
 	GetFlowTemplate(ctx context.Context, arg GetFlowTemplateParams) (FlowTemplate, error)
 	GetFlowTemplatesByUserID(ctx context.Context, userID int64) ([]FlowTemplate, error)
 	GetFlowTermLogs(ctx context.Context, flowID int64) ([]Termlog, error)
+	GetFlowToolApprovals(ctx context.Context, flowID int64) ([]ToolApproval, error)
 	GetFlowToolcall(ctx context.Context, arg GetFlowToolcallParams) (Toolcall, error)
 	GetFlowToolcalls(ctx context.Context, flowID int64) ([]Toolcall, error)
 	// ==================== Toolcalls Analytics Queries ====================
@@ -187,6 +195,7 @@ type Querier interface {
 	// Get all tasks for a flow
 	GetTasksForFlow(ctx context.Context, flowID int64) ([]GetTasksForFlowRow, error)
 	GetTermLog(ctx context.Context, id int64) (Termlog, error)
+	GetToolApproval(ctx context.Context, id int64) (ToolApproval, error)
 	// Get all toolcalls for a flow
 	GetToolcallsForFlow(ctx context.Context, flowID int64) ([]GetToolcallsForFlowRow, error)
 	// One dense row per calendar day in the caller's timezone, zeros included.
