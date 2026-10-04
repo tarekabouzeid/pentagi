@@ -312,6 +312,58 @@ type Subtask {
   updatedAt: Time!
 }
 
+# Risk the classifier assigns a gated tool call
+enum RiskClass {
+  low
+  medium
+  high
+  blocked
+}
+
+# How a flow decides which tool calls need operator approval
+enum HitlMode {
+  off
+  risk_classified
+  all_tools
+}
+
+enum ApprovalDecision {
+  approved
+  denied
+  edited
+}
+
+# Lifecycle of one tool-approval request; decided_by is null for a timeout or cancellation
+enum ToolApprovalStatus {
+  pending
+  approved
+  edited
+  denied
+  timeout
+  cancelled
+}
+
+# args and editedArgs are JSON tool arguments carried as strings; the REST handler serves the same rows
+type ToolApproval {
+  id: ID!
+  flowId: ID!
+  taskId: ID
+  subtaskId: ID
+  assistantId: ID
+  agent: AgentType!
+  toolCallId: String!
+  toolName: String!
+  args: String!
+  riskClass: RiskClass!
+  riskReason: String!
+  status: ToolApprovalStatus!
+  editedArgs: String
+  reason: String!
+  decidedBy: ID
+  requestedAt: Time!
+  decidedAt: Time
+}
+
 # ==================== Logging Types ====================
 
 type AssistantLog {
@@ -1069,12 +1121,25 @@ type Query {
   knowledgeDocuments(filter: KnowledgeFilter, withContent: Boolean!): [KnowledgeDocument!]!
   knowledgeDocument(id: String!): KnowledgeDocument!
   searchKnowledge(query: String!, filter: KnowledgeFilter, limit: Int): [KnowledgeDocumentWithScore!]!
-  
+
+  # Human-in-the-loop tool approvals
+  toolApprovals(flowId: ID!): [ToolApproval!]!
+  pendingToolApprovals(flowId: ID!): [ToolApproval!]!
+}
+
+input HitlConfigInput {
+  mode: HitlMode!
+  minRisk: RiskClass
+  tools: [String!]
+  timeoutSeconds: Int
+  onTimeout: String
+  allowEdit: Boolean
+  maxDenials: Int
 }
 
 type Mutation {
   # Flow management
-  createFlow(modelProvider: String!, input: String!, resourceIds: [ID!]): Flow!
+  createFlow(modelProvider: String!, input: String!, resourceIds: [ID!], hitl: HitlConfigInput): Flow!
   putUserInput(flowId: ID!, input: String!, modelProvider: String, resourceIds: [ID!]): ResultType!
   stopFlow(flowId: ID!): ResultType!
   finishFlow(flowId: ID!): ResultType!
@@ -1120,6 +1185,9 @@ type Mutation {
   renameKnowledgeDocument(id: String!, question: String!): KnowledgeDocument!
   deleteKnowledgeDocument(id: String!): ResultType!
   anonymizeText(text: String!): String!
+
+  # Human-in-the-loop tool approvals
+  decideToolApproval(flowId: ID!, approvalId: ID!, decision: ApprovalDecision!, editedArgs: String, reason: String): ToolApproval!
 }
 
 type Subscription {
@@ -1152,6 +1220,10 @@ type Subscription {
   toolCallLogUpdated(flowId: ID!): ToolCallLog!
   assistantLogAdded(flowId: ID!): AssistantLog!
   assistantLogUpdated(flowId: ID!): AssistantLog!
+
+  # Human-in-the-loop approval events
+  toolApprovalRequested(flowId: ID!): ToolApproval!
+  toolApprovalUpdated(flowId: ID!): ToolApproval!
 
   # Provider events
   providerCreated: ProviderConfig!

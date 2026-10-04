@@ -269,6 +269,16 @@ type FunctionToolcallsStats struct {
 	AvgDurationSeconds   float64 `json:"avgDurationSeconds"`
 }
 
+type HitlConfigInput struct {
+	Mode           HitlMode   `json:"mode"`
+	MinRisk        *RiskClass `json:"minRisk,omitempty"`
+	Tools          []string   `json:"tools,omitempty"`
+	TimeoutSeconds *int       `json:"timeoutSeconds,omitempty"`
+	OnTimeout      *string    `json:"onTimeout,omitempty"`
+	AllowEdit      *bool      `json:"allowEdit,omitempty"`
+	MaxDenials     *int       `json:"maxDenials,omitempty"`
+}
+
 type KnowledgeDocument struct {
 	ID          string               `json:"id"`
 	DocType     KnowledgeDocType     `json:"docType"`
@@ -557,6 +567,26 @@ type TestResult struct {
 	Error     *string `json:"error,omitempty"`
 }
 
+type ToolApproval struct {
+	ID          int64              `json:"id"`
+	FlowID      int64              `json:"flowId"`
+	TaskID      *int64             `json:"taskId,omitempty"`
+	SubtaskID   *int64             `json:"subtaskId,omitempty"`
+	AssistantID *int64             `json:"assistantId,omitempty"`
+	Agent       AgentType          `json:"agent"`
+	ToolCallID  string             `json:"toolCallId"`
+	ToolName    string             `json:"toolName"`
+	Args        string             `json:"args"`
+	RiskClass   RiskClass          `json:"riskClass"`
+	RiskReason  string             `json:"riskReason"`
+	Status      ToolApprovalStatus `json:"status"`
+	EditedArgs  *string            `json:"editedArgs,omitempty"`
+	Reason      string             `json:"reason"`
+	DecidedBy   *int64             `json:"decidedBy,omitempty"`
+	RequestedAt time.Time          `json:"requestedAt"`
+	DecidedAt   *time.Time         `json:"decidedAt,omitempty"`
+}
+
 type ToolCallLog struct {
 	ID              int64          `json:"id"`
 	CallID          string         `json:"callId"`
@@ -796,6 +826,92 @@ func (e *AgentType) UnmarshalGQL(v interface{}) error {
 }
 
 func (e AgentType) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+type ApprovalDecision string
+
+const (
+	ApprovalDecisionApproved ApprovalDecision = "approved"
+	ApprovalDecisionDenied   ApprovalDecision = "denied"
+	ApprovalDecisionEdited   ApprovalDecision = "edited"
+)
+
+var AllApprovalDecision = []ApprovalDecision{
+	ApprovalDecisionApproved,
+	ApprovalDecisionDenied,
+	ApprovalDecisionEdited,
+}
+
+func (e ApprovalDecision) IsValid() bool {
+	switch e {
+	case ApprovalDecisionApproved, ApprovalDecisionDenied, ApprovalDecisionEdited:
+		return true
+	}
+	return false
+}
+
+func (e ApprovalDecision) String() string {
+	return string(e)
+}
+
+func (e *ApprovalDecision) UnmarshalGQL(v interface{}) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = ApprovalDecision(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid ApprovalDecision", str)
+	}
+	return nil
+}
+
+func (e ApprovalDecision) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+type HitlMode string
+
+const (
+	HitlModeOff            HitlMode = "off"
+	HitlModeRiskClassified HitlMode = "risk_classified"
+	HitlModeAllTools       HitlMode = "all_tools"
+)
+
+var AllHitlMode = []HitlMode{
+	HitlModeOff,
+	HitlModeRiskClassified,
+	HitlModeAllTools,
+}
+
+func (e HitlMode) IsValid() bool {
+	switch e {
+	case HitlModeOff, HitlModeRiskClassified, HitlModeAllTools:
+		return true
+	}
+	return false
+}
+
+func (e HitlMode) String() string {
+	return string(e)
+}
+
+func (e *HitlMode) UnmarshalGQL(v interface{}) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = HitlMode(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid HitlMode", str)
+	}
+	return nil
+}
+
+func (e HitlMode) MarshalGQL(w io.Writer) {
 	fmt.Fprint(w, strconv.Quote(e.String()))
 }
 
@@ -1443,6 +1559,51 @@ func (e ResultType) MarshalGQL(w io.Writer) {
 	fmt.Fprint(w, strconv.Quote(e.String()))
 }
 
+type RiskClass string
+
+const (
+	RiskClassLow     RiskClass = "low"
+	RiskClassMedium  RiskClass = "medium"
+	RiskClassHigh    RiskClass = "high"
+	RiskClassBlocked RiskClass = "blocked"
+)
+
+var AllRiskClass = []RiskClass{
+	RiskClassLow,
+	RiskClassMedium,
+	RiskClassHigh,
+	RiskClassBlocked,
+}
+
+func (e RiskClass) IsValid() bool {
+	switch e {
+	case RiskClassLow, RiskClassMedium, RiskClassHigh, RiskClassBlocked:
+		return true
+	}
+	return false
+}
+
+func (e RiskClass) String() string {
+	return string(e)
+}
+
+func (e *RiskClass) UnmarshalGQL(v interface{}) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = RiskClass(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid RiskClass", str)
+	}
+	return nil
+}
+
+func (e RiskClass) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
 type StatusType string
 
 const (
@@ -1614,6 +1775,55 @@ func (e *TokenStatus) UnmarshalGQL(v interface{}) error {
 }
 
 func (e TokenStatus) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+type ToolApprovalStatus string
+
+const (
+	ToolApprovalStatusPending   ToolApprovalStatus = "pending"
+	ToolApprovalStatusApproved  ToolApprovalStatus = "approved"
+	ToolApprovalStatusEdited    ToolApprovalStatus = "edited"
+	ToolApprovalStatusDenied    ToolApprovalStatus = "denied"
+	ToolApprovalStatusTimeout   ToolApprovalStatus = "timeout"
+	ToolApprovalStatusCancelled ToolApprovalStatus = "cancelled"
+)
+
+var AllToolApprovalStatus = []ToolApprovalStatus{
+	ToolApprovalStatusPending,
+	ToolApprovalStatusApproved,
+	ToolApprovalStatusEdited,
+	ToolApprovalStatusDenied,
+	ToolApprovalStatusTimeout,
+	ToolApprovalStatusCancelled,
+}
+
+func (e ToolApprovalStatus) IsValid() bool {
+	switch e {
+	case ToolApprovalStatusPending, ToolApprovalStatusApproved, ToolApprovalStatusEdited, ToolApprovalStatusDenied, ToolApprovalStatusTimeout, ToolApprovalStatusCancelled:
+		return true
+	}
+	return false
+}
+
+func (e ToolApprovalStatus) String() string {
+	return string(e)
+}
+
+func (e *ToolApprovalStatus) UnmarshalGQL(v interface{}) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = ToolApprovalStatus(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid ToolApprovalStatus", str)
+	}
+	return nil
+}
+
+func (e ToolApprovalStatus) MarshalGQL(w io.Writer) {
 	fmt.Fprint(w, strconv.Quote(e.String()))
 }
 

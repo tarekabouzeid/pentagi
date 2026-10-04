@@ -3669,6 +3669,10 @@ func (p *captureFlowPublisher) AssistantLogUpdated(_ context.Context, _ database
 func (p *captureFlowPublisher) KnowledgeDocumentCreated(_ context.Context, _ *model.KnowledgeDocument) {
 }
 
+func (p *captureFlowPublisher) ToolApprovalRequested(_ context.Context, _ database.ToolApproval) {}
+
+func (p *captureFlowPublisher) ToolApprovalUpdated(_ context.Context, _ database.ToolApproval) {}
+
 // captureResourcePublisherForFlow records the Resource events AddResourceFromFlow emits.
 type captureResourcePublisherForFlow struct {
 	userID int64

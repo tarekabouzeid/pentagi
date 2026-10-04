@@ -15,6 +15,7 @@ import (
 	"pentagi/pkg/database/converter"
 	"pentagi/pkg/flowfiles"
 	"pentagi/pkg/graph/model"
+	"pentagi/pkg/hitl"
 	"pentagi/pkg/providers"
 	"pentagi/pkg/providers/pconfig"
 	"pentagi/pkg/providers/provider"
@@ -32,7 +33,7 @@ import (
 )
 
 // CreateFlow is the resolver for the createFlow field.
-func (r *mutationResolver) CreateFlow(ctx context.Context, modelProvider string, input string, resourceIds []int64) (*model.Flow, error) {
+func (r *mutationResolver) CreateFlow(ctx context.Context, modelProvider string, input string, resourceIds []int64, hitl *model.HitlConfigInput) (*model.Flow, error) {
 	uid, _, err := validatePermission(ctx, "flows.create")
 	if err != nil {
 		return nil, err
@@ -67,7 +68,12 @@ func (r *mutationResolver) CreateFlow(ctx context.Context, modelProvider string,
 	}
 	prvtype := prv.Type()
 
-	flowID, err := r.Controller.CreateFlow(ctx, uid, input, prvname, prvtype, nil, dbResources)
+	functions, err := hitlFunctions(hitl)
+	if err != nil {
+		return nil, err
+	}
+
+	flowID, err := r.Controller.CreateFlow(ctx, uid, input, prvname, prvtype, functions, dbResources)
 	if err != nil {
 		return nil, err
 	}
@@ -1313,6 +1319,38 @@ func (r *mutationResolver) AnonymizeText(ctx context.Context, text string) (stri
 	}
 
 	return r.Replacer.ReplaceString(text), nil
+}
+
+// DecideToolApproval is the resolver for the decideToolApproval field.
+func (r *mutationResolver) DecideToolApproval(ctx context.Context, flowID int64, approvalID int64, decision model.ApprovalDecision, editedArgs *string, reason *string) (*model.ToolApproval, error) {
+	uid, err := validatePermissionWithFlowID(ctx, "flows.edit", flowID, r.DB)
+	if err != nil {
+		return nil, err
+	}
+
+	approval, err := r.HITL.Approval(ctx, approvalID)
+	if err != nil {
+		return nil, fmt.Errorf("approval not found: %w", err)
+	}
+	if approval.FlowID != flowID {
+		return nil, fmt.Errorf("%w: approval belongs to another flow", ErrForbidden)
+	}
+
+	var edited json.RawMessage
+	if editedArgs != nil {
+		edited = json.RawMessage(*editedArgs)
+	}
+	var why string
+	if reason != nil {
+		why = *reason
+	}
+
+	updated, err := r.HITL.Decide(ctx, approvalID, hitl.Decision(decision), edited, why, uid)
+	if err != nil {
+		return nil, err
+	}
+
+	return converter.ConvertToolApproval(updated), nil
 }
 
 // Providers is the resolver for the providers field.
@@ -2629,6 +2667,34 @@ func (r *queryResolver) SearchKnowledge(ctx context.Context, query string, filte
 	return r.Knowledge.SearchUserDocuments(ctx, uid, query, filter, lim)
 }
 
+// ToolApprovals is the resolver for the toolApprovals field.
+func (r *queryResolver) ToolApprovals(ctx context.Context, flowID int64) ([]*model.ToolApproval, error) {
+	if _, err := validatePermissionWithFlowID(ctx, "flows.view", flowID, r.DB); err != nil {
+		return nil, err
+	}
+
+	rows, err := r.HITL.ListFlow(ctx, flowID)
+	if err != nil {
+		return nil, err
+	}
+
+	return converter.ConvertToolApprovals(rows), nil
+}
+
+// PendingToolApprovals is the resolver for the pendingToolApprovals field.
+func (r *queryResolver) PendingToolApprovals(ctx context.Context, flowID int64) ([]*model.ToolApproval, error) {
+	if _, err := validatePermissionWithFlowID(ctx, "flows.view", flowID, r.DB); err != nil {
+		return nil, err
+	}
+
+	rows, err := r.DB.GetFlowPendingToolApprovals(ctx, flowID)
+	if err != nil {
+		return nil, err
+	}
+
+	return converter.ConvertToolApprovals(rows), nil
+}
+
 // FlowCreated is the resolver for the flowCreated field.
 func (r *subscriptionResolver) FlowCreated(ctx context.Context) (<-chan *model.Flow, error) {
 	uid, admin, err := validatePermission(ctx, "flows.subscribe")
@@ -2862,6 +2928,36 @@ func (r *subscriptionResolver) AssistantLogUpdated(ctx context.Context, flowID i
 	}
 
 	return r.Subscriptions.NewFlowSubscriber(uid, flowID).AssistantLogUpdated(ctx)
+}
+
+// ToolApprovalRequested is the resolver for the toolApprovalRequested field.
+func (r *subscriptionResolver) ToolApprovalRequested(ctx context.Context, flowID int64) (<-chan *model.ToolApproval, error) {
+	uid, err := validatePermissionWithFlowID(ctx, "flows.subscribe", flowID, r.DB)
+	if err != nil {
+		return nil, err
+	}
+
+	source, err := r.Subscriptions.NewFlowSubscriber(uid, flowID).ToolApprovalRequested(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return convertToolApprovalChannel(ctx, source), nil
+}
+
+// ToolApprovalUpdated is the resolver for the toolApprovalUpdated field.
+func (r *subscriptionResolver) ToolApprovalUpdated(ctx context.Context, flowID int64) (<-chan *model.ToolApproval, error) {
+	uid, err := validatePermissionWithFlowID(ctx, "flows.subscribe", flowID, r.DB)
+	if err != nil {
+		return nil, err
+	}
+
+	source, err := r.Subscriptions.NewFlowSubscriber(uid, flowID).ToolApprovalUpdated(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return convertToolApprovalChannel(ctx, source), nil
 }
 
 // ProviderCreated is the resolver for the providerCreated field.

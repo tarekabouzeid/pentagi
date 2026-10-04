@@ -1206,6 +1206,124 @@ const docTemplate = `{
                 }
             }
         },
+        "/flows/{flowID}/approvals": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "HITL"
+                ],
+                "summary": "List a flow's tool approvals",
+                "parameters": [
+                    {
+                        "minimum": 0,
+                        "type": "integer",
+                        "description": "flow id",
+                        "name": "flowID",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/SuccessResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/flows/{flowID}/approvals/{approvalID}/decide": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "HITL"
+                ],
+                "summary": "Decide a pending tool approval",
+                "parameters": [
+                    {
+                        "minimum": 0,
+                        "type": "integer",
+                        "description": "flow id",
+                        "name": "flowID",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "minimum": 0,
+                        "type": "integer",
+                        "description": "approval id",
+                        "name": "approvalID",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "decision",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/services.decideToolApprovalRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/SuccessResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/flows/{flowID}/assistantlogs/": {
             "get": {
                 "security": [
@@ -7888,6 +8006,35 @@ const docTemplate = `{
                 }
             }
         },
+        "hitl.Config": {
+            "type": "object",
+            "properties": {
+                "allow_edit": {
+                    "type": "boolean"
+                },
+                "max_denials": {
+                    "type": "integer"
+                },
+                "min_risk": {
+                    "type": "string"
+                },
+                "mode": {
+                    "type": "string"
+                },
+                "on_timeout": {
+                    "type": "string"
+                },
+                "timeout_seconds": {
+                    "type": "integer"
+                },
+                "tools": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
         "http.Header": {
             "type": "object",
             "additionalProperties": {
@@ -10313,6 +10460,17 @@ const docTemplate = `{
                 }
             }
         },
+        "sandbox.Selection": {
+            "type": "object",
+            "properties": {
+                "backend": {
+                    "type": "string"
+                },
+                "profile": {
+                    "type": "string"
+                }
+            }
+        },
         "services.agentlogs": {
             "type": "object",
             "properties": {
@@ -10385,6 +10543,26 @@ const docTemplate = `{
                 },
                 "total": {
                     "type": "integer"
+                }
+            }
+        },
+        "services.decideToolApprovalRequest": {
+            "type": "object",
+            "required": [
+                "decision"
+            ],
+            "properties": {
+                "decision": {
+                    "type": "string"
+                },
+                "edited_args": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "reason": {
+                    "type": "string"
                 }
             }
         },
@@ -10672,6 +10850,12 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/tools.ExternalFunction"
                     }
+                },
+                "hitl": {
+                    "$ref": "#/definitions/hitl.Config"
+                },
+                "sandbox": {
+                    "$ref": "#/definitions/sandbox.Selection"
                 },
                 "token": {
                     "type": "string"

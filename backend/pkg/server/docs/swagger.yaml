@@ -81,6 +81,25 @@ definitions:
         items: {}
         type: array
     type: object
+  hitl.Config:
+    properties:
+      allow_edit:
+        type: boolean
+      max_denials:
+        type: integer
+      min_risk:
+        type: string
+      mode:
+        type: string
+      on_timeout:
+        type: string
+      timeout_seconds:
+        type: integer
+      tools:
+        items:
+          type: string
+        type: array
+    type: object
   http.Header:
     additionalProperties:
       items:
@@ -1812,6 +1831,13 @@ definitions:
     - initiator
     - query
     type: object
+  sandbox.Selection:
+    properties:
+      backend:
+        type: string
+      profile:
+        type: string
+    type: object
   services.agentlogs:
     properties:
       agentlogs:
@@ -1859,6 +1885,19 @@ definitions:
         type: array
       total:
         type: integer
+    type: object
+  services.decideToolApprovalRequest:
+    properties:
+      decision:
+        type: string
+      edited_args:
+        items:
+          type: integer
+        type: array
+      reason:
+        type: string
+    required:
+    - decision
     type: object
   services.flows:
     properties:
@@ -2047,6 +2086,10 @@ definitions:
         items:
           $ref: '#/definitions/tools.ExternalFunction'
         type: array
+      hitl:
+        $ref: '#/definitions/hitl.Config'
+      sandbox:
+        $ref: '#/definitions/sandbox.Selection'
       token:
         type: string
     type: object
@@ -2866,6 +2909,82 @@ paths:
       summary: Retrieve agentlogs list by flow id
       tags:
       - Agentlogs
+  /flows/{flowID}/approvals:
+    get:
+      parameters:
+      - description: flow id
+        in: path
+        minimum: 0
+        name: flowID
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/SuccessResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List a flow's tool approvals
+      tags:
+      - HITL
+  /flows/{flowID}/approvals/{approvalID}/decide:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: flow id
+        in: path
+        minimum: 0
+        name: flowID
+        required: true
+        type: integer
+      - description: approval id
+        in: path
+        minimum: 0
+        name: approvalID
+        required: true
+        type: integer
+      - description: decision
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/services.decideToolApprovalRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Decide a pending tool approval
+      tags:
+      - HITL
   /flows/{flowID}/assistantlogs/:
     get:
       parameters:

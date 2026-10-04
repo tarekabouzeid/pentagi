@@ -21,6 +21,7 @@ import (
 	"pentagi/pkg/database/knowledge/vectorstore"
 	"pentagi/pkg/docker"
 	"pentagi/pkg/graph/subscriptions"
+	"pentagi/pkg/hitl"
 	"pentagi/pkg/providers"
 	"pentagi/pkg/server/auth"
 	"pentagi/pkg/server/logger"
@@ -120,6 +121,7 @@ func NewRouter(
 	controller controller.FlowController,
 	subscriptions subscriptions.SubscriptionsController,
 	sandboxes *docker.Backends,
+	hitlDispatcher *hitl.Dispatcher,
 	updates *update.Service,
 ) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
@@ -226,10 +228,11 @@ func NewRouter(
 	analyticsService := services.NewAnalyticsService(orm, timezones)
 	tokenService := services.NewTokenService(orm, cfg.AuthSalt(), tokenCache, subscriptions)
 	knowledgeService := services.NewKnowledgeService(orm, knowledgeStore)
+	hitlService := services.NewHITLService(hitlDispatcher, db)
 	anonymizerService := services.NewAnonymizerService(textReplacer)
 	graphqlService := services.NewGraphqlService(
 		db, cfg, baseURL, cfg.CorsOrigins, tokenCache, providers, controller, subscriptions, knowledgeStore, textReplacer,
-		updates, timezones,
+		updates, timezones, hitlDispatcher,
 	)
 
 	router := newEngine(cfg.TrustedProxies)
@@ -322,6 +325,7 @@ func NewRouter(
 		flowFile:     flowFileService,
 		graphql:      graphqlService,
 		knowledge:    knowledgeService,
+		hitl:         hitlService,
 		msglog:       msglogService,
 		prompt:       promptService,
 		provider:     providerService,
@@ -455,6 +459,7 @@ type privateServices struct {
 	flow         *services.FlowService
 	flowFile     *services.FlowFileService
 	graphql      *services.GraphqlService
+	hitl         *services.HITLService
 	knowledge    *services.KnowledgeService
 	msglog       *services.MsglogService
 	prompt       *services.PromptService
@@ -488,6 +493,7 @@ func registerPrivateRoutes(tokenTier, userTier *gin.RouterGroup, svc privateServ
 	setGraphqlGroup(tokenTier, svc.graphql)
 
 	setKnowledgeGroup(tokenTier, svc.knowledge)
+	setHITLGroup(tokenTier, svc.hitl)
 	setProvidersGroup(tokenTier, svc.provider)
 	setSettingsGroup(tokenTier, svc.settings)
 	setFlowsGroup(tokenTier, svc.flow)
@@ -520,6 +526,14 @@ func setGraphqlGroup(parent *gin.RouterGroup, svc *services.GraphqlService) {
 	graphqlGroup := parent.Group("/")
 	{
 		graphqlGroup.Any("/graphql", svc.ServeGraphql)
+	}
+}
+
+func setHITLGroup(parent *gin.RouterGroup, svc *services.HITLService) {
+	approvalsGroup := parent.Group("/flows/:flowID/approvals")
+	{
+		approvalsGroup.GET("/", auth.PrivilegesRequired("flows.view"), svc.GetFlowApprovals)
+		approvalsGroup.POST("/:approvalID/decide", auth.PrivilegesRequired("flows.edit"), svc.DecideToolApproval)
 	}
 }
 

@@ -249,7 +249,7 @@ func main() {
 		logrus.WithError(err).Warn("failed to re-announce pending tool approvals")
 	}
 
-	r := router.NewRouter(queries, orm, cfg, providers, flowController, subscriptions, sandboxes, updates)
+	r := router.NewRouter(queries, orm, cfg, providers, flowController, subscriptions, sandboxes, hitlDispatcher, updates)
 
 	// Launch HTTP/HTTPS server in background goroutine
 	serverErrChan := make(chan error, 1)

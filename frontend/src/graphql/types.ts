@@ -73,6 +73,12 @@ export type AgentsConfigInput = {
     simpleJson: AgentConfigInput;
 };
 
+export enum ApprovalDecision {
+    Approved = 'approved',
+    Denied = 'denied',
+    Edited = 'edited',
+}
+
 export type CreateApiTokenInput = {
     name?: string | null | undefined;
     ttl: number;
@@ -92,6 +98,22 @@ export type CreateKnowledgeDocumentInput = {
     guideType?: KnowledgeGuideType | null | undefined;
     question: string;
 };
+
+export type HitlConfigInput = {
+    allowEdit?: boolean | null | undefined;
+    maxDenials?: number | null | undefined;
+    minRisk?: RiskClass | null | undefined;
+    mode: HitlMode;
+    onTimeout?: string | null | undefined;
+    timeoutSeconds?: number | null | undefined;
+    tools?: Array<string> | null | undefined;
+};
+
+export enum HitlMode {
+    AllTools = 'all_tools',
+    Off = 'off',
+    RiskClassified = 'risk_classified',
+}
 
 export enum KnowledgeAnswerType {
     Code = 'code',
@@ -251,6 +273,13 @@ export enum ResultType {
     Success = 'success',
 }
 
+export enum RiskClass {
+    Blocked = 'blocked',
+    High = 'high',
+    Low = 'low',
+    Medium = 'medium',
+}
+
 export enum StatusType {
     Created = 'created',
     Failed = 'failed',
@@ -274,6 +303,15 @@ export enum TokenStatus {
     Active = 'active',
     Expired = 'expired',
     Revoked = 'revoked',
+}
+
+export enum ToolApprovalStatus {
+    Approved = 'approved',
+    Cancelled = 'cancelled',
+    Denied = 'denied',
+    Edited = 'edited',
+    Pending = 'pending',
+    Timeout = 'timeout',
 }
 
 export type UpdateApiTokenInput = {
@@ -1085,6 +1123,7 @@ export type CreateFlowMutationVariables = Exact<{
     modelProvider: string;
     input: string;
     resourceIds?: Array<string | number> | string | number | null | undefined;
+    hitl?: HitlConfigInput | null | undefined;
 }>;
 
 export type CreateFlowMutation = { createFlow: FlowFragmentFragment };
@@ -1446,6 +1485,60 @@ export type KnowledgeDocumentUpdatedSubscription = { knowledgeDocumentUpdated: K
 export type KnowledgeDocumentDeletedSubscriptionVariables = Exact<{ [key: string]: never }>;
 
 export type KnowledgeDocumentDeletedSubscription = { knowledgeDocumentDeleted: KnowledgeDocumentFragmentFragment };
+
+export type ToolApprovalFragmentFragment = {
+    id: string;
+    flowId: string;
+    taskId: string | null;
+    subtaskId: string | null;
+    assistantId: string | null;
+    agent: AgentType;
+    toolCallId: string;
+    toolName: string;
+    args: string;
+    riskClass: RiskClass;
+    riskReason: string;
+    status: ToolApprovalStatus;
+    editedArgs: string | null;
+    reason: string;
+    decidedBy: string | null;
+    requestedAt: string;
+    decidedAt: string | null;
+};
+
+export type ToolApprovalsQueryVariables = Exact<{
+    flowId: string | number;
+}>;
+
+export type ToolApprovalsQuery = { toolApprovals: Array<ToolApprovalFragmentFragment> };
+
+export type PendingToolApprovalsQueryVariables = Exact<{
+    flowId: string | number;
+}>;
+
+export type PendingToolApprovalsQuery = { pendingToolApprovals: Array<ToolApprovalFragmentFragment> };
+
+export type DecideToolApprovalMutationVariables = Exact<{
+    flowId: string | number;
+    approvalId: string | number;
+    decision: ApprovalDecision;
+    editedArgs?: string | null | undefined;
+    reason?: string | null | undefined;
+}>;
+
+export type DecideToolApprovalMutation = { decideToolApproval: ToolApprovalFragmentFragment };
+
+export type ToolApprovalRequestedSubscriptionVariables = Exact<{
+    flowId: string | number;
+}>;
+
+export type ToolApprovalRequestedSubscription = { toolApprovalRequested: ToolApprovalFragmentFragment };
+
+export type ToolApprovalUpdatedSubscriptionVariables = Exact<{
+    flowId: string | number;
+}>;
+
+export type ToolApprovalUpdatedSubscription = { toolApprovalUpdated: ToolApprovalFragmentFragment };
 
 export const SettingsFragmentFragmentDoc = {
     kind: 'Document',
@@ -3433,6 +3526,38 @@ export const UserPreferencesFragmentFragmentDoc = {
         },
     ],
 } as unknown as DocumentNode<UserPreferencesFragmentFragment, unknown>;
+export const ToolApprovalFragmentFragmentDoc = {
+    kind: 'Document',
+    definitions: [
+        {
+            kind: 'FragmentDefinition',
+            name: { kind: 'Name', value: 'toolApprovalFragment' },
+            typeCondition: { kind: 'NamedType', name: { kind: 'Name', value: 'ToolApproval' } },
+            selectionSet: {
+                kind: 'SelectionSet',
+                selections: [
+                    { kind: 'Field', name: { kind: 'Name', value: 'id' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'flowId' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'taskId' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'subtaskId' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'assistantId' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'agent' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'toolCallId' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'toolName' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'args' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'riskClass' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'riskReason' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'status' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'editedArgs' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'reason' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'decidedBy' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'requestedAt' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'decidedAt' } },
+                ],
+            },
+        },
+    ],
+} as unknown as DocumentNode<ToolApprovalFragmentFragment, unknown>;
 export const FlowsDocument = {
     kind: 'Document',
     definitions: [
@@ -7900,6 +8025,11 @@ export const CreateFlowDocument = {
                         type: { kind: 'NonNullType', type: { kind: 'NamedType', name: { kind: 'Name', value: 'ID' } } },
                     },
                 },
+                {
+                    kind: 'VariableDefinition',
+                    variable: { kind: 'Variable', name: { kind: 'Name', value: 'hitl' } },
+                    type: { kind: 'NamedType', name: { kind: 'Name', value: 'HitlConfigInput' } },
+                },
             ],
             selectionSet: {
                 kind: 'SelectionSet',
@@ -7922,6 +8052,11 @@ export const CreateFlowDocument = {
                                 kind: 'Argument',
                                 name: { kind: 'Name', value: 'resourceIds' },
                                 value: { kind: 'Variable', name: { kind: 'Name', value: 'resourceIds' } },
+                            },
+                            {
+                                kind: 'Argument',
+                                name: { kind: 'Name', value: 'hitl' },
+                                value: { kind: 'Variable', name: { kind: 'Name', value: 'hitl' } },
                             },
                         ],
                         selectionSet: {
@@ -12798,3 +12933,376 @@ export const KnowledgeDocumentDeletedDocument = {
         },
     ],
 } as unknown as DocumentNode<KnowledgeDocumentDeletedSubscription, KnowledgeDocumentDeletedSubscriptionVariables>;
+export const ToolApprovalsDocument = {
+    kind: 'Document',
+    definitions: [
+        {
+            kind: 'OperationDefinition',
+            operation: 'query',
+            name: { kind: 'Name', value: 'toolApprovals' },
+            variableDefinitions: [
+                {
+                    kind: 'VariableDefinition',
+                    variable: { kind: 'Variable', name: { kind: 'Name', value: 'flowId' } },
+                    type: { kind: 'NonNullType', type: { kind: 'NamedType', name: { kind: 'Name', value: 'ID' } } },
+                },
+            ],
+            selectionSet: {
+                kind: 'SelectionSet',
+                selections: [
+                    {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'toolApprovals' },
+                        arguments: [
+                            {
+                                kind: 'Argument',
+                                name: { kind: 'Name', value: 'flowId' },
+                                value: { kind: 'Variable', name: { kind: 'Name', value: 'flowId' } },
+                            },
+                        ],
+                        selectionSet: {
+                            kind: 'SelectionSet',
+                            selections: [
+                                { kind: 'FragmentSpread', name: { kind: 'Name', value: 'toolApprovalFragment' } },
+                            ],
+                        },
+                    },
+                ],
+            },
+        },
+        {
+            kind: 'FragmentDefinition',
+            name: { kind: 'Name', value: 'toolApprovalFragment' },
+            typeCondition: { kind: 'NamedType', name: { kind: 'Name', value: 'ToolApproval' } },
+            selectionSet: {
+                kind: 'SelectionSet',
+                selections: [
+                    { kind: 'Field', name: { kind: 'Name', value: 'id' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'flowId' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'taskId' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'subtaskId' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'assistantId' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'agent' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'toolCallId' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'toolName' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'args' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'riskClass' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'riskReason' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'status' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'editedArgs' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'reason' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'decidedBy' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'requestedAt' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'decidedAt' } },
+                ],
+            },
+        },
+    ],
+} as unknown as DocumentNode<ToolApprovalsQuery, ToolApprovalsQueryVariables>;
+export const PendingToolApprovalsDocument = {
+    kind: 'Document',
+    definitions: [
+        {
+            kind: 'OperationDefinition',
+            operation: 'query',
+            name: { kind: 'Name', value: 'pendingToolApprovals' },
+            variableDefinitions: [
+                {
+                    kind: 'VariableDefinition',
+                    variable: { kind: 'Variable', name: { kind: 'Name', value: 'flowId' } },
+                    type: { kind: 'NonNullType', type: { kind: 'NamedType', name: { kind: 'Name', value: 'ID' } } },
+                },
+            ],
+            selectionSet: {
+                kind: 'SelectionSet',
+                selections: [
+                    {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'pendingToolApprovals' },
+                        arguments: [
+                            {
+                                kind: 'Argument',
+                                name: { kind: 'Name', value: 'flowId' },
+                                value: { kind: 'Variable', name: { kind: 'Name', value: 'flowId' } },
+                            },
+                        ],
+                        selectionSet: {
+                            kind: 'SelectionSet',
+                            selections: [
+                                { kind: 'FragmentSpread', name: { kind: 'Name', value: 'toolApprovalFragment' } },
+                            ],
+                        },
+                    },
+                ],
+            },
+        },
+        {
+            kind: 'FragmentDefinition',
+            name: { kind: 'Name', value: 'toolApprovalFragment' },
+            typeCondition: { kind: 'NamedType', name: { kind: 'Name', value: 'ToolApproval' } },
+            selectionSet: {
+                kind: 'SelectionSet',
+                selections: [
+                    { kind: 'Field', name: { kind: 'Name', value: 'id' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'flowId' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'taskId' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'subtaskId' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'assistantId' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'agent' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'toolCallId' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'toolName' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'args' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'riskClass' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'riskReason' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'status' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'editedArgs' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'reason' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'decidedBy' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'requestedAt' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'decidedAt' } },
+                ],
+            },
+        },
+    ],
+} as unknown as DocumentNode<PendingToolApprovalsQuery, PendingToolApprovalsQueryVariables>;
+export const DecideToolApprovalDocument = {
+    kind: 'Document',
+    definitions: [
+        {
+            kind: 'OperationDefinition',
+            operation: 'mutation',
+            name: { kind: 'Name', value: 'decideToolApproval' },
+            variableDefinitions: [
+                {
+                    kind: 'VariableDefinition',
+                    variable: { kind: 'Variable', name: { kind: 'Name', value: 'flowId' } },
+                    type: { kind: 'NonNullType', type: { kind: 'NamedType', name: { kind: 'Name', value: 'ID' } } },
+                },
+                {
+                    kind: 'VariableDefinition',
+                    variable: { kind: 'Variable', name: { kind: 'Name', value: 'approvalId' } },
+                    type: { kind: 'NonNullType', type: { kind: 'NamedType', name: { kind: 'Name', value: 'ID' } } },
+                },
+                {
+                    kind: 'VariableDefinition',
+                    variable: { kind: 'Variable', name: { kind: 'Name', value: 'decision' } },
+                    type: {
+                        kind: 'NonNullType',
+                        type: { kind: 'NamedType', name: { kind: 'Name', value: 'ApprovalDecision' } },
+                    },
+                },
+                {
+                    kind: 'VariableDefinition',
+                    variable: { kind: 'Variable', name: { kind: 'Name', value: 'editedArgs' } },
+                    type: { kind: 'NamedType', name: { kind: 'Name', value: 'String' } },
+                },
+                {
+                    kind: 'VariableDefinition',
+                    variable: { kind: 'Variable', name: { kind: 'Name', value: 'reason' } },
+                    type: { kind: 'NamedType', name: { kind: 'Name', value: 'String' } },
+                },
+            ],
+            selectionSet: {
+                kind: 'SelectionSet',
+                selections: [
+                    {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'decideToolApproval' },
+                        arguments: [
+                            {
+                                kind: 'Argument',
+                                name: { kind: 'Name', value: 'flowId' },
+                                value: { kind: 'Variable', name: { kind: 'Name', value: 'flowId' } },
+                            },
+                            {
+                                kind: 'Argument',
+                                name: { kind: 'Name', value: 'approvalId' },
+                                value: { kind: 'Variable', name: { kind: 'Name', value: 'approvalId' } },
+                            },
+                            {
+                                kind: 'Argument',
+                                name: { kind: 'Name', value: 'decision' },
+                                value: { kind: 'Variable', name: { kind: 'Name', value: 'decision' } },
+                            },
+                            {
+                                kind: 'Argument',
+                                name: { kind: 'Name', value: 'editedArgs' },
+                                value: { kind: 'Variable', name: { kind: 'Name', value: 'editedArgs' } },
+                            },
+                            {
+                                kind: 'Argument',
+                                name: { kind: 'Name', value: 'reason' },
+                                value: { kind: 'Variable', name: { kind: 'Name', value: 'reason' } },
+                            },
+                        ],
+                        selectionSet: {
+                            kind: 'SelectionSet',
+                            selections: [
+                                { kind: 'FragmentSpread', name: { kind: 'Name', value: 'toolApprovalFragment' } },
+                            ],
+                        },
+                    },
+                ],
+            },
+        },
+        {
+            kind: 'FragmentDefinition',
+            name: { kind: 'Name', value: 'toolApprovalFragment' },
+            typeCondition: { kind: 'NamedType', name: { kind: 'Name', value: 'ToolApproval' } },
+            selectionSet: {
+                kind: 'SelectionSet',
+                selections: [
+                    { kind: 'Field', name: { kind: 'Name', value: 'id' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'flowId' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'taskId' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'subtaskId' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'assistantId' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'agent' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'toolCallId' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'toolName' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'args' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'riskClass' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'riskReason' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'status' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'editedArgs' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'reason' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'decidedBy' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'requestedAt' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'decidedAt' } },
+                ],
+            },
+        },
+    ],
+} as unknown as DocumentNode<DecideToolApprovalMutation, DecideToolApprovalMutationVariables>;
+export const ToolApprovalRequestedDocument = {
+    kind: 'Document',
+    definitions: [
+        {
+            kind: 'OperationDefinition',
+            operation: 'subscription',
+            name: { kind: 'Name', value: 'toolApprovalRequested' },
+            variableDefinitions: [
+                {
+                    kind: 'VariableDefinition',
+                    variable: { kind: 'Variable', name: { kind: 'Name', value: 'flowId' } },
+                    type: { kind: 'NonNullType', type: { kind: 'NamedType', name: { kind: 'Name', value: 'ID' } } },
+                },
+            ],
+            selectionSet: {
+                kind: 'SelectionSet',
+                selections: [
+                    {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'toolApprovalRequested' },
+                        arguments: [
+                            {
+                                kind: 'Argument',
+                                name: { kind: 'Name', value: 'flowId' },
+                                value: { kind: 'Variable', name: { kind: 'Name', value: 'flowId' } },
+                            },
+                        ],
+                        selectionSet: {
+                            kind: 'SelectionSet',
+                            selections: [
+                                { kind: 'FragmentSpread', name: { kind: 'Name', value: 'toolApprovalFragment' } },
+                            ],
+                        },
+                    },
+                ],
+            },
+        },
+        {
+            kind: 'FragmentDefinition',
+            name: { kind: 'Name', value: 'toolApprovalFragment' },
+            typeCondition: { kind: 'NamedType', name: { kind: 'Name', value: 'ToolApproval' } },
+            selectionSet: {
+                kind: 'SelectionSet',
+                selections: [
+                    { kind: 'Field', name: { kind: 'Name', value: 'id' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'flowId' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'taskId' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'subtaskId' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'assistantId' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'agent' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'toolCallId' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'toolName' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'args' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'riskClass' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'riskReason' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'status' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'editedArgs' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'reason' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'decidedBy' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'requestedAt' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'decidedAt' } },
+                ],
+            },
+        },
+    ],
+} as unknown as DocumentNode<ToolApprovalRequestedSubscription, ToolApprovalRequestedSubscriptionVariables>;
+export const ToolApprovalUpdatedDocument = {
+    kind: 'Document',
+    definitions: [
+        {
+            kind: 'OperationDefinition',
+            operation: 'subscription',
+            name: { kind: 'Name', value: 'toolApprovalUpdated' },
+            variableDefinitions: [
+                {
+                    kind: 'VariableDefinition',
+                    variable: { kind: 'Variable', name: { kind: 'Name', value: 'flowId' } },
+                    type: { kind: 'NonNullType', type: { kind: 'NamedType', name: { kind: 'Name', value: 'ID' } } },
+                },
+            ],
+            selectionSet: {
+                kind: 'SelectionSet',
+                selections: [
+                    {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'toolApprovalUpdated' },
+                        arguments: [
+                            {
+                                kind: 'Argument',
+                                name: { kind: 'Name', value: 'flowId' },
+                                value: { kind: 'Variable', name: { kind: 'Name', value: 'flowId' } },
+                            },
+                        ],
+                        selectionSet: {
+                            kind: 'SelectionSet',
+                            selections: [
+                                { kind: 'FragmentSpread', name: { kind: 'Name', value: 'toolApprovalFragment' } },
+                            ],
+                        },
+                    },
+                ],
+            },
+        },
+        {
+            kind: 'FragmentDefinition',
+            name: { kind: 'Name', value: 'toolApprovalFragment' },
+            typeCondition: { kind: 'NamedType', name: { kind: 'Name', value: 'ToolApproval' } },
+            selectionSet: {
+                kind: 'SelectionSet',
+                selections: [
+                    { kind: 'Field', name: { kind: 'Name', value: 'id' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'flowId' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'taskId' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'subtaskId' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'assistantId' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'agent' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'toolCallId' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'toolName' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'args' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'riskClass' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'riskReason' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'status' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'editedArgs' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'reason' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'decidedBy' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'requestedAt' } },
+                    { kind: 'Field', name: { kind: 'Name', value: 'decidedAt' } },
+                ],
+            },
+        },
+    ],
+} as unknown as DocumentNode<ToolApprovalUpdatedSubscription, ToolApprovalUpdatedSubscriptionVariables>;
