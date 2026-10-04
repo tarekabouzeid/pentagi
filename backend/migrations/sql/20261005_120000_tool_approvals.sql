@@ -32,14 +32,14 @@ CREATE TABLE tool_approvals (
   edited_args   JSONB                   NULL,
   reason        TEXT                    NOT NULL DEFAULT '',
   decided_by    BIGINT                  NULL REFERENCES users(id) ON DELETE SET NULL,
-  requested_at  TIMESTAMPTZ             NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  created_at    TIMESTAMPTZ             NOT NULL DEFAULT CURRENT_TIMESTAMP,
   decided_at    TIMESTAMPTZ             NULL,
 
   CONSTRAINT tool_approvals_edited_args_only_when_edited
     CHECK ((decision = 'edited') = (edited_args IS NOT NULL))
 );
 
-CREATE INDEX tool_approvals_flow_id_requested_at_idx ON tool_approvals(flow_id, requested_at DESC);
+CREATE INDEX tool_approvals_flow_id_created_at_idx ON tool_approvals(flow_id, created_at DESC);
 CREATE INDEX tool_approvals_pending_idx ON tool_approvals(flow_id) WHERE decision = 'pending';
 -- +goose StatementEnd
 

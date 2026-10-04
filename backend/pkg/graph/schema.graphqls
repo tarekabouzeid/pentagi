@@ -195,6 +195,12 @@ enum ToolCallStatus {
 
 # ==================== Core System Types ====================
 
+type SandboxSettings {
+  backends: [String!]!
+  defaultBackend: String!
+  openshellPresets: [String!]!
+}
+
 type Settings {
   debug: Boolean!
   askUser: Boolean!
@@ -202,6 +208,7 @@ type Settings {
   dockerInside: Boolean!
   isDevelopMode: Boolean!
   assistantUseAgents: Boolean!
+  sandbox: SandboxSettings!
 }
 
 enum UpdateState {
@@ -1127,6 +1134,11 @@ type Query {
   pendingToolApprovals(flowId: ID!): [ToolApproval!]!
 }
 
+input SandboxConfigInput {
+  backend: String
+  profile: String
+}
+
 input HitlConfigInput {
   mode: HitlMode!
   minRisk: RiskClass
@@ -1139,7 +1151,7 @@ input HitlConfigInput {
 
 type Mutation {
   # Flow management
-  createFlow(modelProvider: String!, input: String!, resourceIds: [ID!], hitl: HitlConfigInput): Flow!
+  createFlow(modelProvider: String!, input: String!, resourceIds: [ID!], hitl: HitlConfigInput, sandbox: SandboxConfigInput): Flow!
   putUserInput(flowId: ID!, input: String!, modelProvider: String, resourceIds: [ID!]): ResultType!
   stopFlow(flowId: ID!): ResultType!
   finishFlow(flowId: ID!): ResultType!

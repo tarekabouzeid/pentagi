@@ -37,7 +37,7 @@ SELECT
   ta.*
 FROM tool_approvals ta
 WHERE ta.flow_id = $1
-ORDER BY ta.id DESC;
+ORDER BY ta.created_at DESC, ta.id DESC;
 
 -- name: GetFlowPendingToolApprovals :many
 SELECT

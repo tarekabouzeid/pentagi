@@ -373,7 +373,7 @@ type ComplexityRoot struct {
 		CallAssistant           func(childComplexity int, flowID int64, assistantID int64, input string, useAgents bool, resourceIds []int64) int
 		CreateAPIToken          func(childComplexity int, input model.CreateAPITokenInput) int
 		CreateAssistant         func(childComplexity int, flowID int64, modelProvider string, input string, useAgents bool, resourceIds []int64) int
-		CreateFlow              func(childComplexity int, modelProvider string, input string, resourceIds []int64, hitl *model.HitlConfigInput) int
+		CreateFlow              func(childComplexity int, modelProvider string, input string, resourceIds []int64, hitl *model.HitlConfigInput, sandbox *model.SandboxConfigInput) int
 		CreateFlowTemplate      func(childComplexity int, input model.CreateFlowTemplateInput) int
 		CreateKnowledgeDocument func(childComplexity int, input model.CreateKnowledgeDocumentInput) int
 		CreatePrompt            func(childComplexity int, typeArg model.PromptType, template string) int
@@ -545,6 +545,12 @@ type ComplexityRoot struct {
 		Mode      func(childComplexity int) int
 	}
 
+	SandboxSettings struct {
+		Backends         func(childComplexity int) int
+		DefaultBackend   func(childComplexity int) int
+		OpenshellPresets func(childComplexity int) int
+	}
+
 	Screenshot struct {
 		CreatedAt func(childComplexity int) int
 		FlowID    func(childComplexity int) int
@@ -574,6 +580,7 @@ type ComplexityRoot struct {
 		Debug              func(childComplexity int) int
 		DockerInside       func(childComplexity int) int
 		IsDevelopMode      func(childComplexity int) int
+		Sandbox            func(childComplexity int) int
 		Version            func(childComplexity int) int
 	}
 
@@ -802,7 +809,7 @@ type ComplexityRoot struct {
 }
 
 type MutationResolver interface {
-	CreateFlow(ctx context.Context, modelProvider string, input string, resourceIds []int64, hitl *model.HitlConfigInput) (*model.Flow, error)
+	CreateFlow(ctx context.Context, modelProvider string, input string, resourceIds []int64, hitl *model.HitlConfigInput, sandbox *model.SandboxConfigInput) (*model.Flow, error)
 	PutUserInput(ctx context.Context, flowID int64, input string, modelProvider *string, resourceIds []int64) (model.ResultType, error)
 	StopFlow(ctx context.Context, flowID int64) (model.ResultType, error)
 	FinishFlow(ctx context.Context, flowID int64) (model.ResultType, error)
@@ -2521,7 +2528,7 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			return 0, false
 		}
 
-		return e.complexity.Mutation.CreateFlow(childComplexity, args["modelProvider"].(string), args["input"].(string), args["resourceIds"].([]int64), args["hitl"].(*model.HitlConfigInput)), true
+		return e.complexity.Mutation.CreateFlow(childComplexity, args["modelProvider"].(string), args["input"].(string), args["resourceIds"].([]int64), args["hitl"].(*model.HitlConfigInput), args["sandbox"].(*model.SandboxConfigInput)), true
 
 	case "Mutation.createFlowTemplate":
 		if e.complexity.Mutation.CreateFlowTemplate == nil {
@@ -3760,6 +3767,27 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.ReasoningConfig.Mode(childComplexity), true
 
+	case "SandboxSettings.backends":
+		if e.complexity.SandboxSettings.Backends == nil {
+			break
+		}
+
+		return e.complexity.SandboxSettings.Backends(childComplexity), true
+
+	case "SandboxSettings.defaultBackend":
+		if e.complexity.SandboxSettings.DefaultBackend == nil {
+			break
+		}
+
+		return e.complexity.SandboxSettings.DefaultBackend(childComplexity), true
+
+	case "SandboxSettings.openshellPresets":
+		if e.complexity.SandboxSettings.OpenshellPresets == nil {
+			break
+		}
+
+		return e.complexity.SandboxSettings.OpenshellPresets(childComplexity), true
+
 	case "Screenshot.createdAt":
 		if e.complexity.Screenshot.CreatedAt == nil {
 			break
@@ -3913,6 +3941,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Settings.IsDevelopMode(childComplexity), true
+
+	case "Settings.sandbox":
+		if e.complexity.Settings.Sandbox == nil {
+			break
+		}
+
+		return e.complexity.Settings.Sandbox(childComplexity), true
 
 	case "Settings.version":
 		if e.complexity.Settings.Version == nil {
@@ -5226,6 +5261,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputKnowledgeFilter,
 		ec.unmarshalInputModelPriceInput,
 		ec.unmarshalInputReasoningConfigInput,
+		ec.unmarshalInputSandboxConfigInput,
 		ec.unmarshalInputUpdateAPITokenInput,
 		ec.unmarshalInputUpdateFlowTemplateInput,
 		ec.unmarshalInputUpdateKnowledgeDocumentInput,
@@ -5793,6 +5829,11 @@ func (ec *executionContext) field_Mutation_createFlow_args(ctx context.Context, 
 		return nil, err
 	}
 	args["hitl"] = arg3
+	arg4, err := ec.field_Mutation_createFlow_argsSandbox(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["sandbox"] = arg4
 	return args, nil
 }
 func (ec *executionContext) field_Mutation_createFlow_argsModelProvider(
@@ -5880,6 +5921,28 @@ func (ec *executionContext) field_Mutation_createFlow_argsHitl(
 	}
 
 	var zeroVal *model.HitlConfigInput
+	return zeroVal, nil
+}
+
+func (ec *executionContext) field_Mutation_createFlow_argsSandbox(
+	ctx context.Context,
+	rawArgs map[string]interface{},
+) (*model.SandboxConfigInput, error) {
+	// We won't call the directive if the argument is null.
+	// Set call_argument_directives_with_null to true to call directives
+	// even if the argument is null.
+	_, ok := rawArgs["sandbox"]
+	if !ok {
+		var zeroVal *model.SandboxConfigInput
+		return zeroVal, nil
+	}
+
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("sandbox"))
+	if tmp, ok := rawArgs["sandbox"]; ok {
+		return ec.unmarshalOSandboxConfigInput2ᚖpentagiᚋpkgᚋgraphᚋmodelᚐSandboxConfigInput(ctx, tmp)
+	}
+
+	var zeroVal *model.SandboxConfigInput
 	return zeroVal, nil
 }
 
@@ -19726,7 +19789,7 @@ func (ec *executionContext) _Mutation_createFlow(ctx context.Context, field grap
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().CreateFlow(rctx, fc.Args["modelProvider"].(string), fc.Args["input"].(string), fc.Args["resourceIds"].([]int64), fc.Args["hitl"].(*model.HitlConfigInput))
+		return ec.resolvers.Mutation().CreateFlow(rctx, fc.Args["modelProvider"].(string), fc.Args["input"].(string), fc.Args["resourceIds"].([]int64), fc.Args["hitl"].(*model.HitlConfigInput), fc.Args["sandbox"].(*model.SandboxConfigInput))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -26943,6 +27006,8 @@ func (ec *executionContext) fieldContext_Query_settings(_ context.Context, field
 				return ec.fieldContext_Settings_isDevelopMode(ctx, field)
 			case "assistantUseAgents":
 				return ec.fieldContext_Settings_assistantUseAgents(ctx, field)
+			case "sandbox":
+				return ec.fieldContext_Settings_sandbox(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Settings", field.Name)
 		},
@@ -28166,6 +28231,138 @@ func (ec *executionContext) fieldContext_ReasoningConfig_maxTokens(_ context.Con
 	return fc, nil
 }
 
+func (ec *executionContext) _SandboxSettings_backends(ctx context.Context, field graphql.CollectedField, obj *model.SandboxSettings) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_SandboxSettings_backends(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Backends, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.([]string)
+	fc.Result = res
+	return ec.marshalNString2ᚕstringᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_SandboxSettings_backends(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SandboxSettings",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SandboxSettings_defaultBackend(ctx context.Context, field graphql.CollectedField, obj *model.SandboxSettings) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_SandboxSettings_defaultBackend(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.DefaultBackend, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_SandboxSettings_defaultBackend(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SandboxSettings",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SandboxSettings_openshellPresets(ctx context.Context, field graphql.CollectedField, obj *model.SandboxSettings) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_SandboxSettings_openshellPresets(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.OpenshellPresets, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.([]string)
+	fc.Result = res
+	return ec.marshalNString2ᚕstringᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_SandboxSettings_openshellPresets(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SandboxSettings",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Screenshot_id(ctx context.Context, field graphql.CollectedField, obj *model.Screenshot) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Screenshot_id(ctx, field)
 	if err != nil {
@@ -29161,6 +29358,58 @@ func (ec *executionContext) fieldContext_Settings_assistantUseAgents(_ context.C
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Settings_sandbox(ctx context.Context, field graphql.CollectedField, obj *model.Settings) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Settings_sandbox(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Sandbox, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(*model.SandboxSettings)
+	fc.Result = res
+	return ec.marshalNSandboxSettings2ᚖpentagiᚋpkgᚋgraphᚋmodelᚐSandboxSettings(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Settings_sandbox(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Settings",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "backends":
+				return ec.fieldContext_SandboxSettings_backends(ctx, field)
+			case "defaultBackend":
+				return ec.fieldContext_SandboxSettings_defaultBackend(ctx, field)
+			case "openshellPresets":
+				return ec.fieldContext_SandboxSettings_openshellPresets(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type SandboxSettings", field.Name)
 		},
 	}
 	return fc, nil
@@ -40651,6 +40900,40 @@ func (ec *executionContext) unmarshalInputReasoningConfigInput(ctx context.Conte
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputSandboxConfigInput(ctx context.Context, obj interface{}) (model.SandboxConfigInput, error) {
+	var it model.SandboxConfigInput
+	asMap := map[string]interface{}{}
+	for k, v := range obj.(map[string]interface{}) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"backend", "profile"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "backend":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("backend"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Backend = data
+		case "profile":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("profile"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Profile = data
+		}
+	}
+
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputUpdateAPITokenInput(ctx context.Context, obj interface{}) (model.UpdateAPITokenInput, error) {
 	var it model.UpdateAPITokenInput
 	asMap := map[string]interface{}{}
@@ -44750,6 +45033,55 @@ func (ec *executionContext) _ReasoningConfig(ctx context.Context, sel ast.Select
 	return out
 }
 
+var sandboxSettingsImplementors = []string{"SandboxSettings"}
+
+func (ec *executionContext) _SandboxSettings(ctx context.Context, sel ast.SelectionSet, obj *model.SandboxSettings) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, sandboxSettingsImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("SandboxSettings")
+		case "backends":
+			out.Values[i] = ec._SandboxSettings_backends(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "defaultBackend":
+			out.Values[i] = ec._SandboxSettings_defaultBackend(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "openshellPresets":
+			out.Values[i] = ec._SandboxSettings_openshellPresets(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var screenshotImplementors = []string{"Screenshot"}
 
 func (ec *executionContext) _Screenshot(ctx context.Context, sel ast.SelectionSet, obj *model.Screenshot) graphql.Marshaler {
@@ -44929,6 +45261,11 @@ func (ec *executionContext) _Settings(ctx context.Context, sel ast.SelectionSet,
 			}
 		case "assistantUseAgents":
 			out.Values[i] = ec._Settings_assistantUseAgents(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "sandbox":
+			out.Values[i] = ec._Settings_sandbox(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -48061,6 +48398,16 @@ func (ec *executionContext) marshalNRiskClass2pentagiᚋpkgᚋgraphᚋmodelᚐRi
 	return v
 }
 
+func (ec *executionContext) marshalNSandboxSettings2ᚖpentagiᚋpkgᚋgraphᚋmodelᚐSandboxSettings(ctx context.Context, sel ast.SelectionSet, v *model.SandboxSettings) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._SandboxSettings(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNScreenshot2pentagiᚋpkgᚋgraphᚋmodelᚐScreenshot(ctx context.Context, sel ast.SelectionSet, v model.Screenshot) graphql.Marshaler {
 	return ec._Screenshot(ctx, sel, &v)
 }
@@ -49890,6 +50237,14 @@ func (ec *executionContext) marshalORiskClass2ᚖpentagiᚋpkgᚋgraphᚋmodel�
 		return graphql.Null
 	}
 	return v
+}
+
+func (ec *executionContext) unmarshalOSandboxConfigInput2ᚖpentagiᚋpkgᚋgraphᚋmodelᚐSandboxConfigInput(ctx context.Context, v interface{}) (*model.SandboxConfigInput, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := ec.unmarshalInputSandboxConfigInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) marshalOScreenshot2ᚕᚖpentagiᚋpkgᚋgraphᚋmodelᚐScreenshotᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Screenshot) graphql.Marshaler {

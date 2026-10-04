@@ -1,6 +1,9 @@
 package hitl
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestHITL_requiresApproval_FollowsTheMode(t *testing.T) {
 	tests := []struct {
@@ -55,5 +58,42 @@ func TestHITL_ConfigFromFunctions_ReadsOnlyTheHITLKey(t *testing.T) {
 	}
 	if empty.Enabled() {
 		t.Fatal("functions without a hitl key must leave HITL disabled")
+	}
+}
+
+func TestHITL_Validate_RejectsAPolicyTheDispatcherCannotHonour(t *testing.T) {
+	tests := []struct {
+		name    string
+		cfg     Config
+		wantErr string
+	}{
+		{"the zero config is valid", Config{}, ""},
+		{"a full policy is valid", Config{Mode: ModeRiskClassified, MinRisk: RiskMedium, OnTimeout: OnTimeoutApprove, TimeoutSec: 30, MaxDenials: 3}, ""},
+		{"a mode typo", Config{Mode: "risk_classfied"}, `unknown HITL mode "risk_classfied"`},
+		{"a min_risk typo", Config{Mode: ModeRiskClassified, MinRisk: "hgih"}, `unknown HITL min_risk "hgih"`},
+		{"an on_timeout typo", Config{Mode: ModeAllTools, OnTimeout: "allow"}, `unknown HITL on_timeout "allow"`},
+		{"a negative timeout", Config{Mode: ModeAllTools, TimeoutSec: -1}, "must not be negative"},
+		{"a negative denial budget", Config{Mode: ModeAllTools, MaxDenials: -2}, "must not be negative"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			err := tc.cfg.Validate()
+			if tc.wantErr == "" {
+				if err != nil {
+					t.Fatalf("Validate() = %v, want nil", err)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+				t.Fatalf("Validate() = %v, want an error containing %q", err, tc.wantErr)
+			}
+		})
+	}
+}
+
+func TestHITL_requiresApproval_AsksForAnUnrecognisedMode(t *testing.T) {
+	if !(Config{Mode: "bogus"}).requiresApproval("terminal", RiskLow) {
+		t.Fatal("an unrecognised mode must gate the call, not wave it through")
 	}
 }

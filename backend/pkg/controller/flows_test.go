@@ -12,6 +12,7 @@ import (
 
 	"pentagi/pkg/database"
 	"pentagi/pkg/docker"
+	"pentagi/pkg/hitl"
 	obs "pentagi/pkg/observability"
 	"pentagi/pkg/providers"
 	"pentagi/pkg/providers/provider"
@@ -390,6 +391,33 @@ func TestFlows_CreateFlow_RefusesASandboxThatIsNotEnabled(t *testing.T) {
 
 	require.ErrorIs(t, err, sandbox.ErrUnavailable)
 	assert.False(t, c.registered(), "a refused flow is never reserved")
+}
+
+func TestFlows_CreateFlow_RefusesAHITLPolicyWithAnUnknownMode(t *testing.T) {
+	c := newCreatingController(t, nil)
+	functions := &tools.Functions{HITL: &hitl.Config{Mode: "risk_classfied"}}
+
+	_, err := c.fc.CreateFlow(context.Background(), 1, "scan it", "anthropic", "anthropic", functions, nil)
+
+	require.ErrorContains(t, err, `unknown HITL mode "risk_classfied"`)
+	assert.False(t, c.registered(), "a flow with a broken policy is never reserved")
+}
+
+func TestFlows_CreateFlow_RecordsTheHITLPolicyInTheFlowsFirstRow(t *testing.T) {
+	c := newCreatingController(t, nil)
+	functions := &tools.Functions{HITL: &hitl.Config{Mode: hitl.ModeAllTools, MaxDenials: 2}}
+
+	_, err := c.fc.CreateFlow(context.Background(), 1, "scan it", "anthropic", "anthropic", functions, nil)
+	require.NoError(t, err)
+	c.waitForPreparation(t)
+
+	c.q.mx.Lock()
+	stored := c.q.flow.Functions
+	c.q.mx.Unlock()
+	assert.JSONEq(t, `{"sandbox":{"backend":"docker"},"hitl":{"mode":"all_tools","max_denials":2}}`, string(stored))
+
+	close(c.release)
+	c.waitUntilSettled(t)
 }
 
 func TestFlows_GetFlow_ServesAFlowOnlyOnceItIsPrepared(t *testing.T) {

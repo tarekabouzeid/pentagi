@@ -154,9 +154,18 @@ func reserveFlow(ctx context.Context, fwc newFlowWorkerCtx) (database.Flow, erro
 	if err != nil {
 		return database.Flow{}, fmt.Errorf("failed to select the flow sandbox: %w", err)
 	}
+	if fwc.functions != nil && fwc.functions.HITL != nil {
+		if err := fwc.functions.HITL.Validate(); err != nil {
+			return database.Flow{}, fmt.Errorf("invalid HITL policy: %w", err)
+		}
+	}
 	// The flow is bound to its runtime from its first row on, so a cleanup that
 	// runs before the worker is built still finds the runtime that owns it.
-	functionsBlob, err := json.Marshal(tools.Functions{Sandbox: &selected})
+	reserved := tools.Functions{Sandbox: &selected}
+	if fwc.functions != nil {
+		reserved.HITL = fwc.functions.HITL
+	}
+	functionsBlob, err := json.Marshal(reserved)
 	if err != nil {
 		return database.Flow{}, fmt.Errorf("failed to marshal the flow sandbox: %w", err)
 	}

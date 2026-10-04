@@ -93,6 +93,27 @@ func (c Config) Normalized() Config {
 	return c
 }
 
+// Validate rejects a policy the dispatcher could not honour. It runs when a
+// flow is created, so a typo in a stored policy cannot leave the flow running
+// unattended.
+func (c Config) Validate() error {
+	if c.Mode != "" && !c.Mode.Valid() {
+		return fmt.Errorf("unknown HITL mode %q", c.Mode)
+	}
+	if c.MinRisk != "" {
+		if _, ok := severity[c.MinRisk]; !ok {
+			return fmt.Errorf("unknown HITL min_risk %q", c.MinRisk)
+		}
+	}
+	if c.OnTimeout != "" && c.OnTimeout != OnTimeoutDeny && c.OnTimeout != OnTimeoutApprove {
+		return fmt.Errorf("unknown HITL on_timeout %q", c.OnTimeout)
+	}
+	if c.TimeoutSec < 0 || c.MaxDenials < 0 {
+		return errors.New("HITL timeout_seconds and max_denials must not be negative")
+	}
+	return nil
+}
+
 // Enabled reports whether the policy ever asks for a decision.
 func (c Config) Enabled() bool { return c.Normalized().Mode != ModeOff }
 
@@ -121,7 +142,8 @@ func (c Config) requiresApproval(toolName string, risk RiskClass) bool {
 		}
 		return risk.atLeast(c.MinRisk)
 	default:
-		return false
+		// An unrecognised mode asks rather than waves the call through.
+		return true
 	}
 }
 

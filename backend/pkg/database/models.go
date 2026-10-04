@@ -1204,7 +1204,7 @@ type ToolApproval struct {
 	EditedArgs  pqtype.NullRawMessage `json:"edited_args"`
 	Reason      string                `json:"reason"`
 	DecidedBy   sql.NullInt64         `json:"decided_by"`
-	RequestedAt time.Time             `json:"requested_at"`
+	CreatedAt   time.Time             `json:"created_at"`
 	DecidedAt   sql.NullTime          `json:"decided_at"`
 }
 

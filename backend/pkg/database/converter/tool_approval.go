@@ -32,7 +32,7 @@ func ConvertToolApproval(row database.ToolApproval) *model.ToolApproval {
 		Status:      model.ToolApprovalStatus(row.Decision),
 		Reason:      row.Reason,
 		DecidedBy:   database.NullInt64ToInt64(row.DecidedBy),
-		RequestedAt: row.RequestedAt,
+		RequestedAt: row.CreatedAt,
 	}
 	if row.EditedArgs.Valid {
 		edited := string(row.EditedArgs.RawMessage)

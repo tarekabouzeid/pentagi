@@ -33,7 +33,7 @@ import (
 )
 
 // CreateFlow is the resolver for the createFlow field.
-func (r *mutationResolver) CreateFlow(ctx context.Context, modelProvider string, input string, resourceIds []int64, hitl *model.HitlConfigInput) (*model.Flow, error) {
+func (r *mutationResolver) CreateFlow(ctx context.Context, modelProvider string, input string, resourceIds []int64, hitl *model.HitlConfigInput, sandbox *model.SandboxConfigInput) (*model.Flow, error) {
 	uid, _, err := validatePermission(ctx, "flows.create")
 	if err != nil {
 		return nil, err
@@ -68,7 +68,7 @@ func (r *mutationResolver) CreateFlow(ctx context.Context, modelProvider string,
 	}
 	prvtype := prv.Type()
 
-	functions, err := hitlFunctions(hitl)
+	functions, err := flowFunctions(hitl, sandbox)
 	if err != nil {
 		return nil, err
 	}
@@ -2139,6 +2139,7 @@ func (r *queryResolver) Settings(ctx context.Context) (*model.Settings, error) {
 		DockerInside:       r.Config.DockerInside,
 		IsDevelopMode:      version.IsDevelopMode(),
 		AssistantUseAgents: r.Config.AssistantUseAgents,
+		Sandbox:            sandboxSettings(r.Config),
 	}
 
 	return settings, nil

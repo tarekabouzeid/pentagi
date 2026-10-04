@@ -464,6 +464,17 @@ type ReasoningConfig struct {
 	MaxTokens *int             `json:"maxTokens,omitempty"`
 }
 
+type SandboxConfigInput struct {
+	Backend *string `json:"backend,omitempty"`
+	Profile *string `json:"profile,omitempty"`
+}
+
+type SandboxSettings struct {
+	Backends         []string `json:"backends"`
+	DefaultBackend   string   `json:"defaultBackend"`
+	OpenshellPresets []string `json:"openshellPresets"`
+}
+
 type Screenshot struct {
 	ID        int64     `json:"id"`
 	FlowID    int64     `json:"flowId"`
@@ -488,12 +499,13 @@ type SearchLog struct {
 }
 
 type Settings struct {
-	Debug              bool   `json:"debug"`
-	AskUser            bool   `json:"askUser"`
-	Version            string `json:"version"`
-	DockerInside       bool   `json:"dockerInside"`
-	IsDevelopMode      bool   `json:"isDevelopMode"`
-	AssistantUseAgents bool   `json:"assistantUseAgents"`
+	Debug              bool             `json:"debug"`
+	AskUser            bool             `json:"askUser"`
+	Version            string           `json:"version"`
+	DockerInside       bool             `json:"dockerInside"`
+	IsDevelopMode      bool             `json:"isDevelopMode"`
+	AssistantUseAgents bool             `json:"assistantUseAgents"`
+	Sandbox            *SandboxSettings `json:"sandbox"`
 }
 
 type Subscription struct {

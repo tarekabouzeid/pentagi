@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	"pentagi/pkg/config"
 	"pentagi/pkg/database"
 	"pentagi/pkg/graph/model"
 	"pentagi/pkg/hitl"
@@ -95,4 +96,64 @@ func TestHITLResolver_DecideToolApproval_RecordsTheDecidingUser(t *testing.T) {
 	require.NotNil(t, store.decided)
 	assert.Equal(t, int64(1), store.decided.DecidedBy.Int64, "the decision records the acting user")
 	assert.Equal(t, database.ToolApprovalDecisionDenied, store.decided.Decision)
+}
+
+func TestHITLResolver_flowFunctions_MergesTheHITLAndSandboxInputs(t *testing.T) {
+	backend, profile := "openshell", "recon_only"
+	minRisk := model.RiskClassMedium
+	timeout := 45
+
+	got, err := flowFunctions(
+		&model.HitlConfigInput{Mode: model.HitlModeRiskClassified, MinRisk: &minRisk, TimeoutSeconds: &timeout},
+		&model.SandboxConfigInput{Backend: &backend, Profile: &profile},
+	)
+
+	require.NoError(t, err)
+	require.NotNil(t, got.HITL)
+	assert.Equal(t, hitl.ModeRiskClassified, got.HITL.Mode)
+	assert.Equal(t, hitl.RiskMedium, got.HITL.MinRisk)
+	assert.Equal(t, 45, got.HITL.TimeoutSec)
+	require.NotNil(t, got.Sandbox)
+	assert.Equal(t, "openshell", string(got.Sandbox.Backend))
+	assert.Equal(t, "recon_only", got.Sandbox.Profile)
+}
+
+func TestHITLResolver_flowFunctions_LeavesTheDefaultsWhenNothingIsAsked(t *testing.T) {
+	got, err := flowFunctions(nil, nil)
+
+	require.NoError(t, err)
+	assert.Nil(t, got, "no input means no per-flow override at all")
+}
+
+func TestHITLResolver_flowFunctions_RefusesABrokenPolicy(t *testing.T) {
+	bad := "allow"
+
+	_, err := flowFunctions(&model.HitlConfigInput{Mode: model.HitlModeAllTools, OnTimeout: &bad}, nil)
+
+	require.Error(t, err)
+}
+
+func TestHITLResolver_Settings_ListsTheEnabledSandboxBackends(t *testing.T) {
+	tests := []struct {
+		name         string
+		cfg          *config.Config
+		wantBackends []string
+		wantDefault  string
+		wantPresets  []string
+	}{
+		{"docker only", &config.Config{}, []string{"docker"}, "docker", []string{}},
+		{"openshell enabled",
+			&config.Config{OpenShellEnabled: true, ExecutorBackend: "openshell"},
+			[]string{"docker", "openshell"}, "openshell", []string{"binary_analysis", "recon_only", "web_pentest"}},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := sandboxSettings(tc.cfg)
+
+			assert.Equal(t, tc.wantBackends, got.Backends)
+			assert.Equal(t, tc.wantDefault, got.DefaultBackend)
+			assert.Equal(t, tc.wantPresets, got.OpenshellPresets)
+		})
+	}
 }
