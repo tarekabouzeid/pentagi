@@ -12,6 +12,7 @@ import (
 	"pentagi/pkg/database"
 	"pentagi/pkg/docker"
 	"pentagi/pkg/graph/subscriptions"
+	"pentagi/pkg/hitl"
 	"pentagi/pkg/providers"
 	"pentagi/pkg/providers/provider"
 	"pentagi/pkg/tools"
@@ -50,6 +51,7 @@ type FlowController interface {
 	LoadFlows(ctx context.Context) error
 	ListFlows(ctx context.Context) []FlowWorker
 	GetFlow(ctx context.Context, flowID int64) (FlowWorker, error)
+	PauseFlow(ctx context.Context, flowID int64, reason string) error
 	StopFlow(ctx context.Context, flowID int64) error
 	FinishFlow(ctx context.Context, flowID int64) error
 	RenameFlow(ctx context.Context, flowID int64, title string) error
@@ -130,6 +132,7 @@ type flowController struct {
 	cfg       *config.Config
 	flows     map[int64]*flowEntry
 	sandboxes *docker.Backends
+	hitl      *hitl.Dispatcher
 	provs     providers.ProviderController
 	subs      subscriptions.SubscriptionsController
 	alc       AgentLogController
@@ -150,6 +153,7 @@ func NewFlowController(
 	sandboxes *docker.Backends,
 	provs providers.ProviderController,
 	subs subscriptions.SubscriptionsController,
+	hitlDispatcher *hitl.Dispatcher,
 ) FlowController {
 	return &flowController{
 		db:        db,
@@ -157,6 +161,7 @@ func NewFlowController(
 		cfg:       cfg,
 		flows:     make(map[int64]*flowEntry),
 		sandboxes: sandboxes,
+		hitl:      hitlDispatcher,
 		provs:     provs,
 		subs:      subs,
 		alc:       NewAgentLogController(db),
@@ -387,6 +392,7 @@ func (fc *flowController) flowWorkerCtx() flowWorkerCtx {
 		db:        fc.db,
 		cfg:       fc.cfg,
 		sandboxes: fc.sandboxes,
+		hitl:      fc.hitl,
 		provs:     fc.provs,
 		subs:      fc.subs,
 		flowProviderControllers: flowProviderControllers{

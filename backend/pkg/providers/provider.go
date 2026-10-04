@@ -16,6 +16,7 @@ import (
 	"pentagi/pkg/docker"
 	"pentagi/pkg/flowfiles"
 	"pentagi/pkg/graphiti"
+	"pentagi/pkg/hitl"
 	obs "pentagi/pkg/observability"
 	"pentagi/pkg/observability/langfuse"
 	"pentagi/pkg/providers/embeddings"
@@ -91,6 +92,9 @@ type FlowProvider interface {
 	SetTitle(title string)
 	SetAgentLogProvider(agentLog tools.AgentLogProvider)
 	SetMsgLogProvider(msgLog tools.MsgLogProvider)
+	// SetHITLGate installs the human-approval gate for this flow. A nil gate,
+	// the default, lets every tool call run unattended.
+	SetHITLGate(gate hitl.Gate)
 	// SetProvider swaps the provider instance backing this flow. It reports
 	// whether anything actually changed and, when it did, the tool call ID
 	// template resolved for the new provider — so the caller can persist a
@@ -156,6 +160,7 @@ type flowProvider struct {
 
 	prompter templates.Prompter
 	executor tools.FlowToolsExecutor
+	hitlGate hitl.Gate
 	agentLog tools.AgentLogProvider
 	msgLog   tools.MsgLogProvider
 	streamCb StreamMessageHandler
@@ -183,6 +188,20 @@ func (fp *flowProvider) SetMsgLogProvider(msgLog tools.MsgLogProvider) {
 	defer fp.mx.Unlock()
 
 	fp.msgLog = msgLog
+}
+
+func (fp *flowProvider) SetHITLGate(gate hitl.Gate) {
+	fp.mx.Lock()
+	defer fp.mx.Unlock()
+
+	fp.hitlGate = gate
+}
+
+func (fp *flowProvider) hitl() hitl.Gate {
+	fp.mx.RLock()
+	defer fp.mx.RUnlock()
+
+	return fp.hitlGate
 }
 
 // SetProvider installs newProvider as the one backing this flow and returns

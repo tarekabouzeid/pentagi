@@ -22,6 +22,7 @@ import (
 	"pentagi/pkg/database"
 	"pentagi/pkg/docker"
 	"pentagi/pkg/graph/subscriptions"
+	"pentagi/pkg/hitl"
 	obs "pentagi/pkg/observability"
 	"pentagi/pkg/observability/profiling"
 	"pentagi/pkg/providers"
@@ -236,13 +237,19 @@ func main() {
 		logrus.WithError(err).Fatal("LLM provider controller initialization failed")
 	}
 	subscriptions := subscriptions.NewSubscriptionsController()
-	controller := controller.NewFlowController(queries, cfg, sandboxes, providers, subscriptions)
 
-	if err := controller.LoadFlows(ctx); err != nil {
+	hitlDispatcher := hitl.NewDispatcher(queries, controller.NewHITLPublisher(subscriptions))
+	flowController := controller.NewFlowController(queries, cfg, sandboxes, providers, subscriptions, hitlDispatcher)
+	hitlDispatcher.SetPauser(flowController)
+
+	if err := flowController.LoadFlows(ctx); err != nil {
 		logrus.WithError(err).Fatal("Active flows restoration failed")
 	}
+	if err := hitlDispatcher.RestorePending(ctx); err != nil {
+		logrus.WithError(err).Warn("failed to re-announce pending tool approvals")
+	}
 
-	r := router.NewRouter(queries, orm, cfg, providers, controller, subscriptions, sandboxes, updates)
+	r := router.NewRouter(queries, orm, cfg, providers, flowController, subscriptions, sandboxes, updates)
 
 	// Launch HTTP/HTTPS server in background goroutine
 	serverErrChan := make(chan error, 1)

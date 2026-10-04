@@ -11,6 +11,7 @@ import (
 	"pentagi/pkg/csum"
 	"pentagi/pkg/database"
 	"pentagi/pkg/docker"
+	"pentagi/pkg/hitl"
 	obs "pentagi/pkg/observability"
 	"pentagi/pkg/observability/langfuse"
 	"pentagi/pkg/providers/embeddings"
@@ -34,6 +35,7 @@ type AssistantProvider interface {
 	SetMsgChainID(msgChainID int64)
 	SetAgentLogProvider(agentLog tools.AgentLogProvider)
 	SetMsgLogProvider(msgLog tools.MsgLogProvider)
+	SetHITLGate(gate hitl.Gate)
 	SetFlowWorker(flowWorker FlowWorker)
 
 	PrepareAgentChain(ctx context.Context) (int64, error)
@@ -95,6 +97,10 @@ func (ap *assistantProvider) SetAgentLogProvider(agentLog tools.AgentLogProvider
 
 func (ap *assistantProvider) SetMsgLogProvider(msgLog tools.MsgLogProvider) {
 	ap.fp.SetMsgLogProvider(msgLog)
+}
+
+func (ap *assistantProvider) SetHITLGate(gate hitl.Gate) {
+	ap.fp.SetHITLGate(gate)
 }
 
 func (ap *assistantProvider) SetFlowWorker(flowWorker FlowWorker) {

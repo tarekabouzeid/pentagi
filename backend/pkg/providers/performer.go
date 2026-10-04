@@ -14,6 +14,7 @@ import (
 	"pentagi/pkg/csum"
 	"pentagi/pkg/database"
 	"pentagi/pkg/graphiti"
+	"pentagi/pkg/hitl"
 	obs "pentagi/pkg/observability"
 	"pentagi/pkg/observability/langfuse"
 	"pentagi/pkg/providers/pconfig"
@@ -40,6 +41,12 @@ const (
 	maxSoftDetectionsBeforeAbort   = 4
 	delayBetweenRetries            = 5 * time.Second
 )
+
+// blockedByOperatorTemplate is returned to the agent as a tool result when the
+// HITL gate refuses a call, so the model sees the refusal and re-plans instead
+// of the chain failing.
+const blockedByOperatorTemplate = "[BLOCKED BY OPERATOR] the tool call '%s' was not executed: %v. " +
+	"Do not retry it as-is; choose a different, safer approach or explain why you cannot proceed."
 
 // ErrAgentModelCall marks failures while obtaining a usable model response.
 // Persistence and tool execution errors deliberately do not carry this marker:
@@ -345,6 +352,34 @@ func (fp *flowProvider) execToolCall(
 		logger.Warn("failed to exec function: tool call is repeating")
 
 		return response, nil
+	}
+
+	// HITL gate: a flow whose policy covers this call blocks here until the
+	// operator decides. A refusal becomes a tool result the agent reads and
+	// re-plans around, rather than a chain failure.
+	if gate := fp.hitl(); gate != nil {
+		agentCtx, _ := tools.GetAgentContext(ctx)
+		resolution, gateErr := gate.Evaluate(ctx, &hitl.Request{
+			FlowID:        fp.flowID,
+			TaskID:        taskID,
+			SubtaskID:     subtaskID,
+			Agent:         agentCtx.CurrentAgentType,
+			ToolCallID:    toolCall.ID,
+			ToolName:      funcName,
+			IsEnvironment: tools.GetToolType(funcName) == tools.EnvironmentToolType,
+			Args:          funcArgs,
+		})
+		switch {
+		case errors.Is(gateErr, hitl.ErrDenied), errors.Is(gateErr, hitl.ErrTimeout), errors.Is(gateErr, hitl.ErrPaused):
+			logger.WithField("reason", gateErr.Error()).Warn("tool call blocked by operator")
+			return fmt.Sprintf(blockedByOperatorTemplate, funcName, gateErr), nil
+		case gateErr != nil:
+			return "", gateErr
+		}
+		if resolution.Decision == hitl.DecisionEdited && len(resolution.Args) > 0 {
+			logger.WithField("edited_args", string(resolution.Args)).Info("tool call arguments edited by operator")
+			funcArgs = resolution.Args
+		}
 	}
 
 	var (

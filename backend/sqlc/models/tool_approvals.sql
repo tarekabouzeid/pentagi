@@ -76,3 +76,10 @@ WHERE ta.flow_id = $1
     FROM tool_approvals granted
     WHERE granted.flow_id = $1 AND granted.decision IN ('approved', 'edited')
   ), 0);
+
+-- name: GetAllPendingToolApprovals :many
+SELECT
+  ta.*
+FROM tool_approvals ta
+WHERE ta.decision = 'pending'
+ORDER BY ta.id ASC;

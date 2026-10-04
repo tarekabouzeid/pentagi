@@ -22,6 +22,7 @@ import (
 	"pentagi/pkg/flowfiles"
 	"pentagi/pkg/graph/model"
 	"pentagi/pkg/graphiti"
+	"pentagi/pkg/hitl"
 	"pentagi/pkg/providers/embeddings"
 	"pentagi/pkg/sandbox"
 	"pentagi/pkg/schema"
@@ -43,6 +44,7 @@ type Functions struct {
 	Disabled []DisableFunction  `form:"disabled,omitempty" json:"disabled,omitempty" validate:"omitempty,valid"`
 	Function []ExternalFunction `form:"functions,omitempty" json:"functions,omitempty" validate:"omitempty,valid"`
 	Sandbox  *sandbox.Selection `form:"sandbox,omitempty" json:"sandbox,omitempty" validate:"omitempty"`
+	HITL     *hitl.Config       `form:"hitl,omitempty" json:"hitl,omitempty" validate:"omitempty"`
 }
 
 func (f *Functions) Scan(input any) error {

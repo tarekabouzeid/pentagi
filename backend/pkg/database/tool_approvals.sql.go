@@ -259,6 +259,55 @@ func (q *Queries) DecideToolApproval(ctx context.Context, arg DecideToolApproval
 	return i, err
 }
 
+const getAllPendingToolApprovals = `-- name: GetAllPendingToolApprovals :many
+SELECT
+  ta.id, ta.flow_id, ta.task_id, ta.subtask_id, ta.assistant_id, ta.agent, ta.tool_call_id, ta.tool_name, ta.args, ta.risk_class, ta.risk_reason, ta.decision, ta.edited_args, ta.reason, ta.decided_by, ta.requested_at, ta.decided_at
+FROM tool_approvals ta
+WHERE ta.decision = 'pending'
+ORDER BY ta.id ASC
+`
+
+func (q *Queries) GetAllPendingToolApprovals(ctx context.Context) ([]ToolApproval, error) {
+	rows, err := q.db.QueryContext(ctx, getAllPendingToolApprovals)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ToolApproval
+	for rows.Next() {
+		var i ToolApproval
+		if err := rows.Scan(
+			&i.ID,
+			&i.FlowID,
+			&i.TaskID,
+			&i.SubtaskID,
+			&i.AssistantID,
+			&i.Agent,
+			&i.ToolCallID,
+			&i.ToolName,
+			&i.Args,
+			&i.RiskClass,
+			&i.RiskReason,
+			&i.Decision,
+			&i.EditedArgs,
+			&i.Reason,
+			&i.DecidedBy,
+			&i.RequestedAt,
+			&i.DecidedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getFlowPendingToolApprovals = `-- name: GetFlowPendingToolApprovals :many
 SELECT
   ta.id, ta.flow_id, ta.task_id, ta.subtask_id, ta.assistant_id, ta.agent, ta.tool_call_id, ta.tool_name, ta.args, ta.risk_class, ta.risk_reason, ta.decision, ta.edited_args, ta.reason, ta.decided_by, ta.requested_at, ta.decided_at

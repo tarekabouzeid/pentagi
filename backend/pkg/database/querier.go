@@ -87,6 +87,7 @@ type Querier interface {
 	// Get toolcalls stats for all flows
 	GetAllFlowsToolcallsStats(ctx context.Context) ([]GetAllFlowsToolcallsStatsRow, error)
 	GetAllFlowsUsageStats(ctx context.Context) ([]GetAllFlowsUsageStatsRow, error)
+	GetAllPendingToolApprovals(ctx context.Context) ([]ToolApproval, error)
 	GetAllResourcesAll(ctx context.Context) ([]UserResource, error)
 	GetAllResourcesInDir(ctx context.Context, arg GetAllResourcesInDirParams) ([]UserResource, error)
 	GetAllResourcesRecursive(ctx context.Context, arg GetAllResourcesRecursiveParams) ([]UserResource, error)

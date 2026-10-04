@@ -3,6 +3,7 @@ package subscriptions
 import (
 	"context"
 
+	"pentagi/pkg/database"
 	"pentagi/pkg/graph/model"
 )
 
@@ -90,6 +91,14 @@ func (s *flowSubscriber) ScreenshotAdded(ctx context.Context) (<-chan *model.Scr
 
 func (s *flowSubscriber) TerminalLogAdded(ctx context.Context) (<-chan *model.TerminalLog, error) {
 	return s.ctrl.terminalLogAdded.Subscribe(ctx, s.flowID), nil
+}
+
+func (s *flowSubscriber) ToolApprovalRequested(ctx context.Context) (<-chan database.ToolApproval, error) {
+	return s.ctrl.toolApprovalRequested.Subscribe(ctx, s.flowID), nil
+}
+
+func (s *flowSubscriber) ToolApprovalUpdated(ctx context.Context) (<-chan database.ToolApproval, error) {
+	return s.ctrl.toolApprovalUpdated.Subscribe(ctx, s.flowID), nil
 }
 
 func (s *flowSubscriber) MessageLogAdded(ctx context.Context) (<-chan *model.MessageLog, error) {

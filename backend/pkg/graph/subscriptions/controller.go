@@ -68,6 +68,8 @@ type FlowSubscriber interface {
 	ToolCallLogUpdated(ctx context.Context) (<-chan *model.ToolCallLog, error)
 	AssistantLogAdded(ctx context.Context) (<-chan *model.AssistantLog, error)
 	AssistantLogUpdated(ctx context.Context) (<-chan *model.AssistantLog, error)
+	ToolApprovalRequested(ctx context.Context) (<-chan database.ToolApproval, error)
+	ToolApprovalUpdated(ctx context.Context) (<-chan database.ToolApproval, error)
 	FlowContext
 	UserContext
 }
@@ -131,6 +133,8 @@ type FlowPublisher interface {
 	ToolCallLogUpdated(ctx context.Context, toolCallLog database.Toolcall)
 	AssistantLogAdded(ctx context.Context, assistantLog database.Assistantlog)
 	AssistantLogUpdated(ctx context.Context, assistantLog database.Assistantlog, appendPart bool)
+	ToolApprovalRequested(ctx context.Context, approval database.ToolApproval)
+	ToolApprovalUpdated(ctx context.Context, approval database.ToolApproval)
 	KnowledgeDocumentCreated(ctx context.Context, doc *model.KnowledgeDocument)
 	FlowContext
 	UserContext
@@ -239,6 +243,9 @@ type controller struct {
 	resourceUpdatedAdmin Channel[*model.UserResource]
 	resourceDeletedAdmin Channel[*model.UserResource]
 
+	toolApprovalRequested Channel[database.ToolApproval]
+	toolApprovalUpdated   Channel[database.ToolApproval]
+
 	knowledgeDocumentCreated      Channel[*model.KnowledgeDocument]
 	knowledgeDocumentUpdated      Channel[*model.KnowledgeDocument]
 	knowledgeDocumentDeleted      Channel[*model.KnowledgeDocument]
@@ -295,6 +302,9 @@ func NewSubscriptionsController() SubscriptionsController {
 		resourceAddedAdmin:   NewChannel[*model.UserResource](),
 		resourceUpdatedAdmin: NewChannel[*model.UserResource](),
 		resourceDeletedAdmin: NewChannel[*model.UserResource](),
+
+		toolApprovalRequested: NewChannel[database.ToolApproval](),
+		toolApprovalUpdated:   NewChannel[database.ToolApproval](),
 
 		knowledgeDocumentCreated:      NewChannel[*model.KnowledgeDocument](),
 		knowledgeDocumentUpdated:      NewChannel[*model.KnowledgeDocument](),

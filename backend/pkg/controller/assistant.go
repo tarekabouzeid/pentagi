@@ -13,6 +13,7 @@ import (
 	"pentagi/pkg/cast"
 	"pentagi/pkg/database"
 	"pentagi/pkg/graph/subscriptions"
+	"pentagi/pkg/hitl"
 	obs "pentagi/pkg/observability"
 	"pentagi/pkg/observability/langfuse"
 	"pentagi/pkg/providers"
@@ -86,6 +87,16 @@ type assistantWorkerCtx struct {
 	prompter templates.Prompter
 
 	flowWorkerCtx
+}
+
+// flowHITLConfig reads the HITL policy of the flow an assistant attaches to,
+// so the assistant is gated by the same policy as the flow.
+func flowHITLConfig(ctx context.Context, db database.Querier, flowID int64) (hitl.Config, error) {
+	flow, err := db.GetFlow(ctx, flowID)
+	if err != nil {
+		return hitl.Config{}, fmt.Errorf("failed to get flow %d: %w", flowID, err)
+	}
+	return hitl.ConfigFromFunctions(flow.Functions)
 }
 
 const assistantInputTimeout = 2 * time.Second
@@ -264,6 +275,13 @@ func buildAssistantWorker(
 	assistantProvider.SetAgentLogProvider(workers.alw)
 	assistantProvider.SetMsgLogProvider(aslw)
 	assistantProvider.SetFlowWorker(awc.fw)
+	if awc.hitl != nil {
+		if cfg, cfgErr := flowHITLConfig(ctx, awc.db, awc.flowID); cfgErr != nil {
+			return nil, wrapErrorEndSpan(ctx, assistantSpan, "failed to read the flow HITL policy", cfgErr)
+		} else if gate := awc.hitl.GateFor(awc.flowID, cfg); gate != nil {
+			assistantProvider.SetHITLGate(gate)
+		}
+	}
 
 	executor.SetImage(container.Image)
 	executor.SetEmbedder(assistantProvider.Embedder())
@@ -431,6 +449,13 @@ func LoadAssistantWorker(
 	assistantProvider.SetAgentLogProvider(workers.alw)
 	assistantProvider.SetMsgLogProvider(aslw)
 	assistantProvider.SetFlowWorker(awc.fw)
+	if awc.hitl != nil {
+		if cfg, cfgErr := flowHITLConfig(ctx, awc.db, awc.flowID); cfgErr != nil {
+			return nil, wrapErrorEndSpan(ctx, assistantSpan, "failed to read the flow HITL policy", cfgErr)
+		} else if gate := awc.hitl.GateFor(awc.flowID, cfg); gate != nil {
+			assistantProvider.SetHITLGate(gate)
+		}
+	}
 
 	executor.SetImage(container.Image)
 	executor.SetEmbedder(assistantProvider.Embedder())

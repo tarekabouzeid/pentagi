@@ -19,6 +19,7 @@ import (
 	"pentagi/pkg/flowfiles"
 	"pentagi/pkg/graph/model"
 	"pentagi/pkg/graph/subscriptions"
+	"pentagi/pkg/hitl"
 	obs "pentagi/pkg/observability"
 	"pentagi/pkg/observability/langfuse"
 	"pentagi/pkg/providers"
@@ -97,6 +98,7 @@ type flowWorkerCtx struct {
 	sandboxes *docker.Backends
 	provs     providers.ProviderController
 	subs      subscriptions.SubscriptionsController
+	hitl      *hitl.Dispatcher
 
 	flowProviderControllers
 }
@@ -281,6 +283,9 @@ func buildFlowWorker(
 
 	flowProvider.SetAgentLogProvider(workers.alw)
 	flowProvider.SetMsgLogProvider(workers.mlw)
+	if fwc.hitl != nil && functions.HITL != nil {
+		flowProvider.SetHITLGate(fwc.hitl.GateFor(flow.ID, *functions.HITL))
+	}
 
 	executor.SetImage(flowProvider.Image())
 	executor.SetEmbedder(flowProvider.Embedder())
@@ -457,6 +462,9 @@ func LoadFlowWorker(ctx context.Context, flow database.Flow, fwc flowWorkerCtx) 
 
 	flowProvider.SetAgentLogProvider(workers.alw)
 	flowProvider.SetMsgLogProvider(workers.mlw)
+	if fwc.hitl != nil && functions.HITL != nil {
+		flowProvider.SetHITLGate(fwc.hitl.GateFor(flow.ID, *functions.HITL))
+	}
 
 	executor.SetImage(flowProvider.Image())
 	executor.SetEmbedder(flowProvider.Embedder())

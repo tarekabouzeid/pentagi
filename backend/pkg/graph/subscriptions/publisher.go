@@ -92,6 +92,14 @@ func (p *flowPublisher) TerminalLogAdded(ctx context.Context, terminalLog databa
 	p.ctrl.terminalLogAdded.Publish(ctx, p.flowID, converter.ConvertTerminalLog(terminalLog))
 }
 
+func (p *flowPublisher) ToolApprovalRequested(ctx context.Context, approval database.ToolApproval) {
+	p.ctrl.toolApprovalRequested.Publish(ctx, p.flowID, approval)
+}
+
+func (p *flowPublisher) ToolApprovalUpdated(ctx context.Context, approval database.ToolApproval) {
+	p.ctrl.toolApprovalUpdated.Publish(ctx, p.flowID, approval)
+}
+
 func (p *flowPublisher) MessageLogAdded(ctx context.Context, messageLog database.Msglog) {
 	p.ctrl.messageLogAdded.Publish(ctx, p.flowID, converter.ConvertMessageLog(messageLog))
 }

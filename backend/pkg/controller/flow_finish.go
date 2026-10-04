@@ -182,6 +182,13 @@ func (fc *flowController) finishFlowWork(
 	flowID int64,
 	publisher subscriptions.FlowPublisher,
 ) error {
+	if fc.hitl != nil {
+		if err := fc.hitl.CancelFlow(ctx, flowID, "flow finished"); err != nil {
+			logrus.WithContext(ctx).WithError(err).WithField("flow_id", flowID).
+				Warn("failed to cancel pending tool approvals of a finishing flow")
+		}
+	}
+
 	tasks, err := fc.db.GetFlowTasks(ctx, flowID)
 	if err != nil {
 		return fmt.Errorf("failed to get tasks of flow %d: %w", flowID, err)
