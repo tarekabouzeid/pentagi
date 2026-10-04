@@ -2014,6 +2014,24 @@ These settings control the agent supervision system, including execution monitor
 | MaxLimitedAgentToolCalls       | `MAX_LIMITED_AGENT_TOOL_CALLS`      | `20`          | Maximum tool calls for limited agents (Searcher, Enricher, etc.)       |
 | AgentPlanningStepEnabled       | `AGENT_PLANNING_STEP_ENABLED`       | `false`       | Enable automatic task planning for specialist agents                   |
 
+## Sandbox Executor Backend Settings
+
+These settings choose the runtime a flow runs its tools in. A flow records its runtime when it is created, so changing them affects only new flows. See [hitl.md](hitl.md) for the approval policy and the OpenShell presets.
+
+| Option                  | Environment Variable          | Default Value          | Description                                                                 |
+| ----------------------- | ----------------------------- | ---------------------- | --------------------------------------------------------------------------- |
+| ExecutorBackend         | `EXECUTOR_BACKEND`            | `docker`               | Runtime new flows use when they do not choose one: `docker` or `openshell`  |
+| OpenShellEnabled        | `OPENSHELL_ENABLED`           | `false`                | Connect to an NVIDIA OpenShell gateway at startup and offer it as a runtime |
+| OpenShellGatewayAddress | `OPENSHELL_GATEWAY_ADDRESS`   | `localhost:8080`       | Gateway `host:port`; an `http://` prefix means plaintext                    |
+| OpenShellWorkspace      | `OPENSHELL_WORKSPACE`         | `default`              | OpenShell workspace the sandboxes are created in                            |
+| OpenShellToken          | `OPENSHELL_TOKEN`             |                        | Bearer token for the gateway; masked in logs and agent transcripts          |
+| OpenShellTLSCACert      | `OPENSHELL_TLS_CA_CERT`       |                        | CA file for a gateway with a private certificate                            |
+| OpenShellTLSInsecure    | `OPENSHELL_TLS_INSECURE`      | `false`                | Skip certificate verification (testing only)                                |
+| OpenShellDefaultImage   | `OPENSHELL_DEFAULT_IMAGE`     | `vxcontrol/kali-linux` | Image for sandboxes of flows that do not name one                           |
+| OpenShellDefaultPreset  | `OPENSHELL_DEFAULT_PRESET`    | `web_pentest`          | Policy preset for flows that do not choose one: `web_pentest`, `recon_only` or `binary_analysis` |
+
+Startup fails if `OPENSHELL_ENABLED` is set and the gateway is unreachable or the default preset is unknown, and a flow that asks for a runtime that is not enabled is rejected; neither falls back to Docker.
+
 ### Usage Details
 
 The agent supervision settings are used in `pkg/providers/providers.go` and `pkg/providers/performer.go` to configure supervision mechanisms:

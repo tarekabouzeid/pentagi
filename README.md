@@ -26,6 +26,7 @@
   - [Agent Docker Access](#giving-agents-docker-without-giving-away-the-host)
   - [Running Several Instances](#running-several-instances-tenant_id)
 - [How to Use PentAGI After Login](#how-to-use-pentagi-after-login)
+  - [Approving Tool Calls](#6-approve-tool-calls-before-they-run)
 - [API Access](#api-access)
   - [LLM Provider Configuration](#custom-llm-provider-configuration)
     - [Azure OpenAI](#using-azure-openai)
@@ -47,6 +48,7 @@
   - [Knowledge Graph (Graphiti)](#knowledge-graph-integration-graphiti)
   - [OAuth Integration](#github-and-google-oauth-integration)
   - [Docker Image Configuration](#docker-image-configuration)
+  - [OpenShell Sandbox Backend](#openshell-sandbox-backend)
 - [Development](#development)
 - [Testing LLM Agents](#testing-llm-agents)
 - [Embedding Configuration and Testing](#embedding-configuration-and-testing)
@@ -71,6 +73,8 @@ You can watch the video **PentAGI overview**:
 - Optional Knowledge Graph Integration. Graphiti-powered knowledge graph using Neo4j for semantic relationship tracking and advanced context understanding.
 - Web Intelligence. Built-in browser via [scraper](https://hub.docker.com/r/vxcontrol/scraper) for gathering latest information from web sources.
 - External Search Systems. Integration with advanced search APIs including [Tavily](https://tavily.com), [Firecrawl](https://www.firecrawl.dev), [Traversaal](https://traversaal.ai), [Perplexity](https://www.perplexity.ai), [DuckDuckGo](https://duckduckgo.com/), [Google Custom Search](https://programmablesearchengine.google.com/), [Sploitus Search](https://sploitus.com) and [Searxng](https://searxng.org) for comprehensive information gathering.
+- Human-in-the-Loop Control. Optional per-flow approval of tool calls: a risk classifier holds scans, network calls and writes (or every call) until an operator approves, edits or denies them, with a full audit trail.
+- Pluggable Sandbox. Run a flow's tools in Docker or in an [NVIDIA OpenShell](https://github.com/NVIDIA/OpenShell) policy-governed sandbox, chosen per flow.
 - Team of Specialists. Delegation system with specialized AI agents for research, development, and infrastructure tasks, enhanced with optional execution monitoring and intelligent task planning for optimal performance with smaller models.
 - Comprehensive Monitoring. Detailed logging and integration with Grafana/Prometheus for real-time system observation.
 - Detailed Reporting. Generation of thorough vulnerability reports with exploitation guides.
@@ -1134,6 +1138,18 @@ Current limits and limitations to be aware of:
 - Uploads and resources are mirrored into the running container at the fixed paths `/work/uploads/` and `/work/resources/`; files written to other container paths are not auto-mirrored back into the flow file model. Container snapshots can originate from any container path you pull (for example `/etc/...`) and are cached on the flow side under `container/`; they are not pushed back into the container.
 - Container snapshots are point-in-time pulls. Editing a snapshot in the UI does not write back into the running container.
 - Deleting a flow today removes the flow record and its long-term memory entries, but does not yet archive or remove the flow's `flow-{id}-data/` directory on disk. Operators are still expected to clean up the data directory manually if they want to reclaim the space.
+
+### 6. Approve tool calls before they run
+
+When you create an **Automation** flow, the message box offers a **Tool approval** menu:
+
+- **No approval** (default): the agents run unattended.
+- **Approve risky tools**: scans, network calls, file writes and similar wait for you; read-only commands run.
+- **Approve every tool**: every sandbox command and file change waits for you.
+
+A waiting call appears in the flow's **Approvals** tab with its risk and the reason it was flagged, and the arguments the agent wants to run. **Approve** runs it, **Edit** lets you change the JSON arguments first, and **Deny** tells the agent the call was refused so it can choose another approach. A request nobody decides within 5 minutes is denied, and three denials in a row mark the flow as waiting and tell the agent to stop and report back.
+
+The risk classifier is a heuristic over the command text, not a security boundary: use it to put a person in front of the obviously risky calls, and use **Approve every tool** when every action must be reviewed. Approval is chosen when the flow is created. The full policy (modes, thresholds, timeouts, REST and GraphQL usage, audit trail) is in [backend/docs/hitl.md](backend/docs/hitl.md).
 
 For early testing, start with a narrow target and a single clear objective. This makes the output easier to review and helps you refine your prompts before running larger assessments.
 
@@ -3038,6 +3054,19 @@ OAUTH_GOOGLE_CLIENT_SECRET=your_google_client_secret
 ```
 
 Make sure `PUBLIC_URL` matches the externally accessible HTTPS address of your PentAGI instance and does not include the callback path itself. If the URL configured in the OAuth provider does not exactly match the callback generated by PentAGI, the provider will reject the login attempt with a redirect URI mismatch error.
+
+### OpenShell Sandbox Backend
+
+By default a flow's tools run in a Docker container. To run them in an [NVIDIA OpenShell](https://github.com/NVIDIA/OpenShell) sandbox instead, point PentAGI at a running OpenShell gateway:
+
+```bash
+OPENSHELL_ENABLED=true
+OPENSHELL_GATEWAY_ADDRESS=openshell.internal:8080   # http:// prefix for plaintext
+OPENSHELL_TOKEN=...                                  # if the gateway requires one
+EXECUTOR_BACKEND=openshell                           # optional: make it the default
+```
+
+Every flow then gets a backend menu (and a policy preset: `web_pentest`, `recon_only` or `binary_analysis`) on the new-flow form, and each flow runs in its own OpenShell sandbox that is deleted when the flow ends. Startup fails rather than falling back to Docker if the gateway cannot be reached. Differences from Docker, and the settings reference, are in [backend/docs/hitl.md](backend/docs/hitl.md#sandbox-backends).
 
 ### Docker Image Configuration
 
