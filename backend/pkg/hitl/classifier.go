@@ -6,40 +6,32 @@ import (
 	"strings"
 )
 
-// Classification is a risk class with the human-readable reason it was chosen,
-// stored on the approval so the operator sees why a call was flagged.
 type Classification struct {
 	Risk   RiskClass
 	Reason string
 }
 
-// dangerousCommands take over or destroy the host; always blocked so the
-// operator sees them even in risk_classified mode.
+// dangerousCommands are always blocked, even in risk_classified mode.
 var dangerousCommands = []string{
 	"rm -rf /", "rm -fr /", "mkfs", "dd if=", "> /dev/sd", "of=/dev/sd",
 	":(){ :|:& };:", "shutdown", "reboot", "halt", "poweroff", "init 0",
 	"chmod -r 777 /", "chown -r", "/etc/shadow", "/etc/gshadow",
 }
 
-// exploitTools actively exploit or crack, unlike the discovery tools below;
-// running one is high risk whatever its target.
 var exploitTools = []string{
 	"sqlmap", "hydra", "medusa", "john", "hashcat", "metasploit",
 	"msfconsole", "msfvenom", "crackmapexec", "responder", "mimikatz",
 }
 
-// scanTools are noisy but non-destructive discovery tools.
 var scanTools = []string{
 	"nmap", "masscan", "nikto", "dirb", "gobuster", "ffuf",
 	"nuclei", "whatweb", "wpscan", "amass", "subfinder",
 }
 
-// networkCommands reach out over the network.
 var networkCommands = []string{
 	"curl", "wget", "nc ", "ncat", "netcat", "ssh ", "scp ", "sftp", "rsync", "ftp ",
 }
 
-// credentialIndicators mark a request aimed at an authentication surface.
 var credentialIndicators = []string{
 	"password", "passwd", "/auth", "/login", "signin", "sign-in", "credential", "token=",
 }
@@ -55,7 +47,6 @@ var reverseShellRe = regexp.MustCompile(`/dev/tcp/|-e\s+(/bin/(sh|bash)|cmd\.exe
 // -X request vs -x proxy.
 var writeHTTPRe = regexp.MustCompile(`--request\s+(?i:post|put|delete|patch)\b|-X\s*(?i:post|put|delete|patch)\b|--data(-raw|-binary|-urlencode)?[=\s]|--form[=\s]|-d\s|-F\s`)
 
-// readOnlyCommands are the first words of commands that only observe.
 var readOnlyCommands = map[string]struct{}{
 	"ls": {}, "cat": {}, "head": {}, "tail": {}, "grep": {}, "find": {}, "which": {},
 	"whoami": {}, "id": {}, "pwd": {}, "echo": {}, "date": {}, "uname": {}, "hostname": {},
@@ -63,7 +54,6 @@ var readOnlyCommands = map[string]struct{}{
 	"ps": {}, "top": {}, "df": {}, "du": {}, "free": {}, "env": {}, "printenv": {}, "ss": {},
 }
 
-// sensitivePathParts mark a filesystem write that can subvert the host.
 var sensitivePathParts = []string{
 	"/etc/", "/root/", "/boot/", "/usr/", "/bin/", "/sbin/", "/lib/",
 	"/proc/", "/sys/", "/dev/", ".ssh/", ".bashrc", ".bash_profile", ".profile",
@@ -80,11 +70,7 @@ type fileArgs struct {
 	Path   string `json:"path"`
 }
 
-// Classify scores a tool call. toolName and isEnvironment come from the tool
-// registry: an environment tool runs in the sandbox and is classified on its
-// arguments, while every other tool (agent delegation, search, memory) is a
-// low-risk orchestration step. An unparseable environment call is treated as
-// high risk, never waved through.
+// Classify: only environment tools (sandbox execution) are classified on their arguments; all others are low risk. An unparseable environment call is high risk, never waved through.
 func Classify(toolName string, isEnvironment bool, args json.RawMessage) Classification {
 	if !isEnvironment {
 		return Classification{Risk: RiskLow, Reason: "non-sandbox tool"}

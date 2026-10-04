@@ -119,9 +119,10 @@ func (c Config) Enabled() bool { return c.Normalized().Mode != ModeOff }
 
 // requiresApproval decides whether a call of toolName at the given risk needs a
 // decision. An explicit Tools list, when set, is the whole rule in
-// risk_classified mode: only those tools are gated. A blocked call is always
-// gated, whatever the mode, so the operator can see and refuse it.
-func (c Config) requiresApproval(toolName string, risk RiskClass) bool {
+// risk_classified mode: only those tools are gated. all_tools gates the tools
+// that run in the sandbox, plus any other tool the list names. A blocked call
+// is always gated, whatever the mode, so the operator can see and refuse it.
+func (c Config) requiresApproval(toolName string, isEnvironment bool, risk RiskClass) bool {
 	c = c.Normalized()
 	if risk == RiskBlocked {
 		return true
@@ -130,21 +131,25 @@ func (c Config) requiresApproval(toolName string, risk RiskClass) bool {
 	case ModeOff:
 		return false
 	case ModeAllTools:
-		return true
+		return isEnvironment || c.names(toolName)
 	case ModeRiskClassified:
 		if len(c.Tools) > 0 {
-			for _, t := range c.Tools {
-				if t == toolName {
-					return true
-				}
-			}
-			return false
+			return c.names(toolName)
 		}
 		return risk.atLeast(c.MinRisk)
 	default:
 		// An unrecognised mode asks rather than waves the call through.
 		return true
 	}
+}
+
+func (c Config) names(toolName string) bool {
+	for _, t := range c.Tools {
+		if t == toolName {
+			return true
+		}
+	}
+	return false
 }
 
 // ConfigFromFunctions reads the "hitl" key of a flow's stored functions

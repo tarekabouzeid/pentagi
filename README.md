@@ -1145,7 +1145,7 @@ When you create an **Automation** flow, the message box offers a **Tool approval
 
 - **No approval** (default): the agents run unattended.
 - **Approve risky tools**: scans, network calls, file writes and similar wait for you; read-only commands run.
-- **Approve every tool**: every sandbox command and file change waits for you.
+- **Approve every tool**: every sandbox command and file change waits for you; delegation, search and memory steps do not.
 
 A waiting call appears in the flow's **Approvals** tab with its risk and the reason it was flagged, and the arguments the agent wants to run. **Approve** runs it, **Edit** lets you change the JSON arguments first, and **Deny** tells the agent the call was refused so it can choose another approach. A request nobody decides within 5 minutes is denied, and three denials in a row mark the flow as waiting and tell the agent to stop and report back.
 

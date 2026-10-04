@@ -209,6 +209,23 @@ func TestDispatcher_Evaluate_RunsAnUngatedCallWithoutAsking(t *testing.T) {
 	}
 }
 
+func TestDispatcher_Evaluate_AllToolsLetsAnOrchestrationToolRun(t *testing.T) {
+	d, store, _ := newDispatcher(t)
+	gate := d.GateFor(testFlowID, Config{Mode: ModeAllTools})
+
+	r := req("done", `{"success":true,"result":"ok"}`)
+	r.IsEnvironment = false
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	res, err := gate.Evaluate(ctx, r)
+	if err != nil {
+		t.Fatalf("evaluate: %v (the call was held for a decision, want it to run)", err)
+	}
+	if res.Decision != DecisionApproved || len(store.rows) != 0 {
+		t.Fatalf("decision %s with %d rows, want approved without asking", res.Decision, len(store.rows))
+	}
+}
+
 // decided waits for the one pending approval, then applies decide to it.
 func decideSoon(t *testing.T, d *Dispatcher, store *memStore, decide func(id int64)) {
 	t.Helper()

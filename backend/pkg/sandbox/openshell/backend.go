@@ -1,12 +1,6 @@
-// Package openshell adapts an NVIDIA OpenShell gateway to the
-// docker.DockerClient surface PentAGI's tools are written against, so a flow
-// can run its tools in an OpenShell sandbox instead of a Docker container with
-// no change to the terminal, file or flow-file code.
+// Package openshell adapts an NVIDIA OpenShell gateway to docker.DockerClient so a flow can run its tools in an OpenShell sandbox.
 //
-// OpenShell addresses a sandbox by (workspace, name) over gRPC; this adapter
-// maps PentAGI's container name 1:1 to a sandbox name in a fixed workspace, and
-// bridges Docker's exec create/attach/inspect split onto OpenShell's single
-// streaming exec by keeping per-exec state here.
+// A container name maps 1:1 to a sandbox name in a fixed workspace. Docker's exec create/attach/inspect split is bridged onto OpenShell's single streaming exec with per-exec state kept here.
 package openshell
 
 import (
@@ -30,15 +24,11 @@ import (
 	"pentagi/pkg/docker"
 
 	v1 "github.com/NVIDIA/OpenShell/sdk/go/openshell/v1"
-	"github.com/NVIDIA/OpenShell/sdk/go/openshell/v1/types"
 	"github.com/moby/moby/api/types/container"
 	"github.com/moby/moby/client"
 	"github.com/sirupsen/logrus"
 )
 
-// sandboxAPI, execAPI and fileAPI are the slices of the OpenShell SDK this
-// backend uses. They are interfaces so a test can supply fakes; the SDK's
-// concrete clients satisfy them.
 type sandboxAPI interface {
 	Create(ctx context.Context, workspace, name string, spec *v1.SandboxSpec, labels map[string]string, opts ...v1.CreateOptions) (*v1.Sandbox, error)
 	Get(ctx context.Context, workspace, name string) (*v1.Sandbox, error)
@@ -55,7 +45,6 @@ type fileAPI interface {
 	Download(ctx context.Context, workspace, sandboxName, remotePath, localPath string) error
 }
 
-// Backend is an OpenShell-backed docker.DockerClient.
 type Backend struct {
 	db        database.Querier
 	logger    *logrus.Entry
@@ -73,8 +62,6 @@ type Backend struct {
 	seq   int64
 }
 
-// execState holds a created-but-not-run exec until it is attached, then its
-// exit code until it is inspected.
 type execState struct {
 	sandbox string
 	cmd     []string
@@ -88,9 +75,7 @@ type execState struct {
 
 var _ docker.DockerClient = (*Backend)(nil)
 
-// New dials the gateway in cfg and returns a Backend. It fails closed: a
-// gateway that cannot be reached, or a default preset that is not built in,
-// stops startup rather than silently falling back to Docker.
+// New fails closed: an unreachable gateway or an unknown default preset stops startup instead of falling back to Docker.
 func New(ctx context.Context, db database.Querier, cfg *config.Config) (*Backend, error) {
 	if _, ok := presets[cfg.OpenShellDefaultPreset]; !ok {
 		return nil, fmt.Errorf("OPENSHELL_DEFAULT_PRESET %q is not a known preset (%s)", cfg.OpenShellDefaultPreset, strings.Join(Presets(), ", "))
@@ -118,8 +103,6 @@ func New(ctx context.Context, db database.Querier, cfg *config.Config) (*Backend
 	return newBackend(db, cfg, client.Sandboxes(), client.Exec(), client.Files(), client), nil
 }
 
-// newBackend builds a Backend from already-resolved SDK slices. The exported
-// New wires the real client; tests wire fakes.
 func newBackend(db database.Querier, cfg *config.Config, sandboxes sandboxAPI, exec execAPI, files fileAPI, closer io.Closer) *Backend {
 	return &Backend{
 		db:            db,
@@ -137,10 +120,7 @@ func newBackend(db database.Querier, cfg *config.Config, sandboxes sandboxAPI, e
 
 func (b *Backend) GetDefaultImage() string { return b.defaultImage }
 
-// RunContainer provisions a sandbox for the flow. The preset comes from the
-// flow's sandbox profile, carried here on container.Config.Labels under
-// "openshell.preset"; an empty or unknown label falls back to the configured
-// default preset.
+// RunContainer reads the preset from the "openshell.preset" label on container.Config.Labels; an empty or unknown label uses the default preset.
 func (b *Backend) RunContainer(
 	ctx context.Context,
 	containerName string,
@@ -251,10 +231,7 @@ func (b *Backend) IsContainerRunning(ctx context.Context, containerID string) (b
 	return sandbox.Status.Phase == v1.SandboxReady, nil
 }
 
-// KillFlowCommands has no OpenShell equivalent: each exec is its own gateway
-// call with no shared background process to sweep, so a finished Run leaves
-// nothing to kill. It is a no-op rather than an error so flow teardown and the
-// terminal's stop path behave the same as on Docker.
+// KillFlowCommands is a no-op: each exec is its own gateway call, so there is no background process to sweep.
 func (b *Backend) KillFlowCommands(ctx context.Context, containerID string) error {
 	return nil
 }
@@ -275,10 +252,7 @@ func (b *Backend) ContainerExecCreate(ctx context.Context, containerName string,
 	return client.ExecCreateResult{ID: id}, nil
 }
 
-// ContainerExecAttach runs the created command to completion and returns its
-// output as a stream shaped like Docker's: raw when the exec requested a TTY,
-// stdcopy-framed otherwise, so the existing demux and plain-read callers both
-// behave as they do against a real daemon.
+// ContainerExecAttach returns output raw for a TTY exec and stdcopy-framed otherwise, as a real daemon streams it.
 func (b *Backend) ContainerExecAttach(ctx context.Context, execID string, _ client.ExecAttachOptions) (client.HijackedResponse, error) {
 	b.mx.Lock()
 	state, ok := b.execs[execID]
@@ -331,8 +305,7 @@ func (b *Backend) ContainerExecInspect(ctx context.Context, execID string) (clie
 }
 
 func (b *Backend) ContainerStatPath(ctx context.Context, containerID string, p string) (container.PathStat, error) {
-	// `stat -c <fmt>` prints size, octal mode and mtime; %X-style escapes are
-	// portable across GNU and busybox coreutils.
+	// %X-style escapes are portable across GNU and busybox coreutils.
 	out, code, err := b.runGather(ctx, containerID, []string{"stat", "-c", "%s|%f|%Y|%n", p})
 	if err != nil {
 		return container.PathStat{}, err
@@ -380,9 +353,6 @@ func (b *Backend) ListContainerDir(ctx context.Context, containerID string, dirP
 	return listing, nil
 }
 
-// CopyToContainer untars content and uploads each regular file under dstPath,
-// so a terminal WriteFile (a one-file tar) and a flow-file sync (many files)
-// both land where Docker would put them.
 func (b *Backend) CopyToContainer(ctx context.Context, containerID, dstPath string, content io.Reader, _ client.CopyToContainerOptions) error {
 	tr := tar.NewReader(content)
 	for {
@@ -421,8 +391,6 @@ func (b *Backend) CopyToContainer(ctx context.Context, containerID, dstPath stri
 	}
 }
 
-// CopyFromContainer downloads srcPath and returns it as a single-entry tar,
-// the shape the terminal's reader expects from Docker.
 func (b *Backend) CopyFromContainer(ctx context.Context, containerID, srcPath string) (io.ReadCloser, container.PathStat, error) {
 	tmp, err := os.CreateTemp("", "osh-download-*")
 	if err != nil {
@@ -458,8 +426,7 @@ func (b *Backend) CopyFromContainer(ctx context.Context, containerID, srcPath st
 	return io.NopCloser(&buf), stat, nil
 }
 
-// Cleanup is a no-op: OpenShell sandboxes are per-flow and are deleted when the
-// flow finishes, so there is no process-wide pool to sweep on shutdown.
+// Cleanup is a no-op: sandboxes are per-flow and deleted when the flow finishes.
 func (b *Backend) Cleanup(ctx context.Context) error {
 	if b.closer != nil {
 		return b.closer.Close()
@@ -467,8 +434,6 @@ func (b *Backend) Cleanup(ctx context.Context) error {
 	return nil
 }
 
-// runGather runs a command and returns its combined output and exit code. It is
-// used by stat and list, which need the text rather than a stream.
 func (b *Backend) runGather(ctx context.Context, sandbox string, cmd []string) (string, int, error) {
 	result, err := b.exec.Run(ctx, b.workspace, sandbox, cmd, v1.ExecOptions{NoLoginShell: true})
 	if err != nil {
@@ -480,7 +445,6 @@ func (b *Backend) runGather(ctx context.Context, sandbox string, cmd []string) (
 	return out.String(), result.ExitCode, nil
 }
 
-// parseStat parses "size|hexmode|mtime|name" from `stat -c`.
 func parseStat(line, requestedPath string) (container.PathStat, error) {
 	fields := strings.SplitN(line, "|", 4)
 	if len(fields) < 3 {
@@ -509,8 +473,7 @@ func isNotFound(err error) bool {
 	return v1.IsNotFound(err)
 }
 
-// writeStdFrame writes one Docker stdcopy frame: stream byte, three zero bytes,
-// a big-endian uint32 length, then the payload. demuxExecStdout reads these.
+// writeStdFrame writes a Docker stdcopy frame: stream byte, 3 zero bytes, big-endian uint32 length, payload.
 func writeStdFrame(buf *bytes.Buffer, stream byte, payload []byte) {
 	if len(payload) == 0 {
 		return
@@ -522,8 +485,6 @@ func writeStdFrame(buf *bytes.Buffer, stream byte, payload []byte) {
 	buf.Write(payload)
 }
 
-// nopConn is a net.Conn that backs a HijackedResponse whose data already lives
-// in its Reader; only Close is ever called, by HijackedResponse.Close.
 type nopConn struct{}
 
 func (nopConn) Read([]byte) (int, error)         { return 0, io.EOF }
@@ -540,11 +501,7 @@ type nopAddr struct{}
 func (nopAddr) Network() string { return "openshell" }
 func (nopAddr) String() string  { return "openshell" }
 
-var _ = types.SandboxPolicy{}
-
-// statModeToFileMode maps the low 16 bits of a stat() st_mode (as `stat -c %f`
-// prints in hex) to Go's os.FileMode, carrying the directory bit the Files tab
-// relies on to tell a folder from a file.
+// statModeToFileMode keeps the directory bit the Files tab uses to tell folders from files.
 func statModeToFileMode(raw uint32) os.FileMode {
 	mode := os.FileMode(raw & 0o777)
 	switch raw & 0xf000 {

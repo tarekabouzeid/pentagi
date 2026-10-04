@@ -10,24 +10,28 @@ func TestHITL_requiresApproval_FollowsTheMode(t *testing.T) {
 		name string
 		cfg  Config
 		tool string
+		env  bool
 		risk RiskClass
 		want bool
 	}{
-		{"off never asks", Config{Mode: ModeOff}, "terminal", RiskHigh, false},
-		{"off still asks for a blocked call", Config{Mode: ModeOff}, "terminal", RiskBlocked, true},
-		{"all_tools asks for a low call", Config{Mode: ModeAllTools}, "file", RiskLow, true},
-		{"risk_classified asks at the threshold", Config{Mode: ModeRiskClassified, MinRisk: RiskMedium}, "terminal", RiskMedium, true},
-		{"risk_classified skips below the threshold", Config{Mode: ModeRiskClassified, MinRisk: RiskHigh}, "terminal", RiskMedium, false},
-		{"the default threshold is high", Config{Mode: ModeRiskClassified}, "terminal", RiskMedium, false},
-		{"the default threshold asks at high", Config{Mode: ModeRiskClassified}, "terminal", RiskHigh, true},
-		{"an explicit tool list gates only its tools", Config{Mode: ModeRiskClassified, Tools: []string{"terminal"}}, "terminal", RiskLow, true},
-		{"an explicit tool list skips other tools", Config{Mode: ModeRiskClassified, Tools: []string{"terminal"}}, "file", RiskHigh, false},
-		{"an explicit tool list still catches a blocked call", Config{Mode: ModeRiskClassified, Tools: []string{"terminal"}}, "file", RiskBlocked, true},
+		{"off never asks", Config{Mode: ModeOff}, "terminal", true, RiskHigh, false},
+		{"off still asks for a blocked call", Config{Mode: ModeOff}, "terminal", true, RiskBlocked, true},
+		{"all_tools asks for a low sandbox call", Config{Mode: ModeAllTools}, "file", true, RiskLow, true},
+		{"all_tools skips an orchestration tool", Config{Mode: ModeAllTools}, "done", false, RiskLow, false},
+		{"all_tools asks for an orchestration tool the list names", Config{Mode: ModeAllTools, Tools: []string{"done"}}, "done", false, RiskLow, true},
+		{"all_tools still catches a blocked orchestration call", Config{Mode: ModeAllTools}, "done", false, RiskBlocked, true},
+		{"risk_classified asks at the threshold", Config{Mode: ModeRiskClassified, MinRisk: RiskMedium}, "terminal", true, RiskMedium, true},
+		{"risk_classified skips below the threshold", Config{Mode: ModeRiskClassified, MinRisk: RiskHigh}, "terminal", true, RiskMedium, false},
+		{"the default threshold is high", Config{Mode: ModeRiskClassified}, "terminal", true, RiskMedium, false},
+		{"the default threshold asks at high", Config{Mode: ModeRiskClassified}, "terminal", true, RiskHigh, true},
+		{"an explicit tool list gates only its tools", Config{Mode: ModeRiskClassified, Tools: []string{"terminal"}}, "terminal", true, RiskLow, true},
+		{"an explicit tool list skips other tools", Config{Mode: ModeRiskClassified, Tools: []string{"terminal"}}, "file", true, RiskHigh, false},
+		{"an explicit tool list still catches a blocked call", Config{Mode: ModeRiskClassified, Tools: []string{"terminal"}}, "file", true, RiskBlocked, true},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := tc.cfg.requiresApproval(tc.tool, tc.risk); got != tc.want {
+			if got := tc.cfg.requiresApproval(tc.tool, tc.env, tc.risk); got != tc.want {
 				t.Fatalf("requiresApproval(%q, %s) = %v, want %v", tc.tool, tc.risk, got, tc.want)
 			}
 		})
@@ -93,7 +97,7 @@ func TestHITL_Validate_RejectsAPolicyTheDispatcherCannotHonour(t *testing.T) {
 }
 
 func TestHITL_requiresApproval_AsksForAnUnrecognisedMode(t *testing.T) {
-	if !(Config{Mode: "bogus"}).requiresApproval("terminal", RiskLow) {
+	if !(Config{Mode: "bogus"}).requiresApproval("terminal", false, RiskLow) {
 		t.Fatal("an unrecognised mode must gate the call, not wave it through")
 	}
 }

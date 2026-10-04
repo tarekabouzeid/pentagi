@@ -17,9 +17,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// HITLService serves the REST equivalents of the HITL GraphQL operations: it
-// reuses the same dispatcher, so a decision made over REST and one made over
-// GraphQL are indistinguishable downstream.
 type HITLService struct {
 	dispatcher *hitl.Dispatcher
 	db         database.Querier
@@ -35,8 +32,7 @@ type decideToolApprovalRequest struct {
 	Reason     string          `json:"reason"`
 }
 
-// ownsFlow reports whether the caller may act on flowID: a flows.admin caller
-// may act on any flow, anyone else only on their own.
+// ownsFlow: flows.admin may act on any flow, anyone else only on their own.
 func (s *HITLService) ownsFlow(c *gin.Context, flowID int64) (bool, error) {
 	privs := c.GetStringSlice("prm")
 	if slices.Contains(privs, "flows.admin") {
@@ -113,7 +109,6 @@ func (s *HITLService) DecideToolApproval(c *gin.Context) {
 		return
 	}
 	if approval.FlowID != flowID {
-		// Not the caller's flow to decide for, though the approval exists.
 		response.Error(c, response.ErrNotPermitted, errors.New("approval belongs to another flow"))
 		return
 	}
@@ -129,8 +124,6 @@ func (s *HITLService) DecideToolApproval(c *gin.Context) {
 	response.Success(c, http.StatusOK, converter.ConvertToolApproval(updated))
 }
 
-// flowIDOwnedByCaller parses :flowID and confirms the caller may act on it,
-// writing the error response itself when it may not.
 func (s *HITLService) flowIDOwnedByCaller(c *gin.Context) (int64, bool) {
 	flowID, err := strconv.ParseInt(c.Param("flowID"), 10, 64)
 	if err != nil {

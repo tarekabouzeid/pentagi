@@ -21,9 +21,9 @@ The policy is stored under `hitl` in the flow's functions, so it is fixed when t
 
 | Field | Values | Default | Meaning |
 |---|---|---|---|
-| `mode` | `off`, `risk_classified`, `all_tools` | `off` | `risk_classified` asks for calls at or above `min_risk`; `all_tools` asks for every call |
+| `mode` | `off`, `risk_classified`, `all_tools` | `off` | `risk_classified` asks for calls at or above `min_risk`; `all_tools` asks for every sandbox call (terminal and file), and for any other tool named in `tools` |
 | `min_risk` | `low`, `medium`, `high`, `blocked` | `high` | Threshold for `risk_classified` |
-| `tools` | tool names | none | In `risk_classified` mode, gate only these tools whatever their risk |
+| `tools` | tool names | none | In `risk_classified` mode, gate only these tools whatever their risk; in `all_tools` mode, also gate these non-sandbox tools |
 | `timeout_seconds` | integer | `0` | Seconds to wait for a decision; `0` waits indefinitely |
 | `on_timeout` | `deny`, `approve` | `deny` | What a request that nobody decided becomes |
 | `allow_edit` | boolean | `false` | Whether an operator may replace the agent's arguments; an edit on a flow that does not allow it is refused and the request stays pending |
@@ -44,7 +44,7 @@ The classifier reads the arguments of sandbox tools (`terminal`, `file`); every 
 | `medium` | Network scanners (`nmap`, `masscan`, `nikto`, `gobuster`, `ffuf`, `nuclei`, `wpscan`, ...), outbound network commands (`curl`, `wget`, `nc`, `ssh`, `scp`, `rsync`, ...), detached background commands, other commands with side effects, other file writes |
 | `low` | Read-only commands (`ls`, `cat`, `grep`, `find`, `id`, `ps`, ...) and file reads |
 
-The classifier is a heuristic over the command text. It does not understand shell: a command that is assembled at run time, encoded, or hidden in a script the agent wrote earlier can be classified lower than it deserves. Treat it as a way to put a human in front of the obviously risky calls, not as a security boundary. The boundary is the sandbox, and the policy presets of the OpenShell backend below tighten it. For work where every action must be reviewed, use `all_tools`.
+The classifier is a heuristic over the command text. It does not understand shell: a command that is assembled at run time, encoded, or hidden in a script the agent wrote earlier can be classified lower than it deserves. Treat it as a way to put a human in front of the obviously risky calls, not as a security boundary. The boundary is the sandbox, and the policy presets of the OpenShell backend below tighten it. For work where every action must be reviewed, use `all_tools`, which reviews every command and file change the agents make.
 
 ## Operator actions
 

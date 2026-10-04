@@ -1,23 +1,16 @@
 package openshell
 
 import (
-	v1 "github.com/NVIDIA/OpenShell/sdk/go/openshell/v1"
 	"github.com/NVIDIA/OpenShell/sdk/go/openshell/v1/types"
 )
 
-// Preset is a named sandbox security policy an operator can pick per flow.
-// The presets intentionally mirror common pentest postures; the names are what
-// a flow stores in its sandbox profile.
 type Preset struct {
 	Name        string
 	Description string
 	Policy      *types.SandboxPolicy
 }
 
-// presets are the built-in policies. web_pentest is the default: full network
-// egress and writable scratch space for an authorized engagement. recon_only
-// withholds mail ports. binary_analysis cuts off the network entirely for
-// malware work.
+// web_pentest is the default; recon_only withholds mail ports; binary_analysis has no network.
 var presets = map[string]Preset{
 	"web_pentest": {
 		Name:        "web_pentest",
@@ -66,12 +59,10 @@ var presets = map[string]Preset{
 				ReadOnly:       []string{"/"},
 				ReadWrite:      []string{"/tmp", "/work"},
 			},
-			// No NetworkPolicies: nothing is admitted, so egress is denied.
 		},
 	},
 }
 
-// Presets lists the built-in preset names.
 func Presets() []string {
 	names := make([]string, 0, len(presets))
 	for name := range presets {
@@ -80,8 +71,6 @@ func Presets() []string {
 	return names
 }
 
-// policyFor returns the policy of a preset, falling back to the given default
-// preset when name is empty, and reporting whether the name was known.
 func policyFor(name, fallback string) (*types.SandboxPolicy, bool) {
 	if name == "" {
 		name = fallback
@@ -92,5 +81,3 @@ func policyFor(name, fallback string) (*types.SandboxPolicy, bool) {
 	}
 	return preset.Policy, true
 }
-
-var _ = v1.SandboxReady

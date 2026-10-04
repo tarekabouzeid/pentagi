@@ -14,7 +14,6 @@ import (
 	"github.com/sqlc-dev/pqtype"
 )
 
-// Store persists approvals; database.Querier satisfies it.
 type Store interface {
 	CreateToolApproval(ctx context.Context, arg database.CreateToolApprovalParams) (database.ToolApproval, error)
 	DecideToolApproval(ctx context.Context, arg database.DecideToolApprovalParams) (database.ToolApproval, error)
@@ -26,22 +25,16 @@ type Store interface {
 	CountFlowTrailingDenials(ctx context.Context, flowID int64) (int64, error)
 }
 
-// Publisher pushes approval changes to subscribers. The controller adapts it
-// to the GraphQL subscription hub.
 type Publisher interface {
 	ToolApprovalRequested(ctx context.Context, approval database.ToolApproval)
 	ToolApprovalUpdated(ctx context.Context, approval database.ToolApproval)
 }
 
-// FlowPauser pauses a flow once it has exhausted its denial budget. The
-// controller provides it; the dispatcher calls it at most once per flow before
-// returning ErrPaused.
+// FlowPauser pauses a flow once its denial budget is exhausted; called at most once per flow before ErrPaused.
 type FlowPauser interface {
 	PauseFlow(ctx context.Context, flowID int64, reason string) error
 }
 
-// Dispatcher owns the pending approvals of every flow: it persists each
-// request, announces it, and hands the agent back a decision.
 type Dispatcher struct {
 	store  Store
 	pub    Publisher
@@ -52,8 +45,7 @@ type Dispatcher struct {
 	pauser  FlowPauser
 }
 
-// waiter is an agent blocked on one request, with the edit rule of its flow's
-// policy so a decision can be checked against it before it is recorded.
+// waiter carries the flow policy's edit rule so a decision is validated before it is recorded.
 type waiter struct {
 	ch        chan database.ToolApproval
 	allowEdit bool
@@ -68,12 +60,10 @@ func NewDispatcher(store Store, pub Publisher) *Dispatcher {
 	}
 }
 
-// SetPauser wires the flow pauser after the controller that implements it is
-// built. It is called once at startup, before any flow runs.
+// SetPauser must be called once at startup, before any flow runs.
 func (d *Dispatcher) SetPauser(p FlowPauser) { d.pauser = p }
 
-// GateFor returns the gate a flow worker installs on its provider, or nil when
-// the flow's policy never asks for a decision.
+// GateFor returns nil when the flow's policy never asks for a decision.
 func (d *Dispatcher) GateFor(flowID int64, cfg Config) Gate {
 	if !cfg.Enabled() {
 		return nil
@@ -81,8 +71,7 @@ func (d *Dispatcher) GateFor(flowID int64, cfg Config) Gate {
 	return &flowGate{dispatcher: d, flowID: flowID, cfg: cfg.Normalized()}
 }
 
-// Decide records an operator's decision and wakes the waiting agent. It is the
-// one entry point for both the REST and the GraphQL handlers.
+// Decide is the single entry point for the REST and GraphQL handlers.
 func (d *Dispatcher) Decide(
 	ctx context.Context, approvalID int64, decision Decision, editedArgs json.RawMessage, reason string, decidedBy int64,
 ) (database.ToolApproval, error) {
@@ -125,7 +114,6 @@ func (d *Dispatcher) Decide(
 	return updated, nil
 }
 
-// wake hands the decided row to the blocked agent, if one is still waiting.
 func (d *Dispatcher) wake(approval database.ToolApproval) {
 	d.mx.Lock()
 	w, ok := d.waiters[approval.ID]
@@ -152,9 +140,7 @@ func (d *Dispatcher) forget(id int64) {
 	d.mx.Unlock()
 }
 
-// CancelOrphaned closes the requests left pending by a previous process. The
-// agents that were blocked on them died with it, so a decision would wake
-// nobody; the restored flow asks again if it still needs the call.
+// CancelOrphaned closes requests left pending by a previous process; their agents died with it, so a restored flow asks again if it still needs the call.
 func (d *Dispatcher) CancelOrphaned(ctx context.Context) error {
 	cancelled, err := d.store.CancelPendingToolApprovals(ctx, "the server restarted while this request was waiting")
 	if err != nil {
@@ -169,8 +155,6 @@ func (d *Dispatcher) CancelOrphaned(ctx context.Context) error {
 	return nil
 }
 
-// CancelFlow refuses every pending approval of a flow, waking their agents. It
-// is called when a flow is stopped or finished so no agent blocks forever.
 func (d *Dispatcher) CancelFlow(ctx context.Context, flowID int64, reason string) error {
 	cancelled, err := d.store.CancelFlowPendingToolApprovals(ctx, database.CancelFlowPendingToolApprovalsParams{
 		FlowID: flowID,
@@ -186,21 +170,18 @@ func (d *Dispatcher) CancelFlow(ctx context.Context, flowID int64, reason string
 	return nil
 }
 
-// ListFlow returns a flow's approvals, newest first.
 func (d *Dispatcher) ListFlow(ctx context.Context, flowID int64) ([]database.ToolApproval, error) {
 	return d.store.GetFlowToolApprovals(ctx, flowID)
 }
 
-// Approval returns one approval by id.
 func (d *Dispatcher) Approval(ctx context.Context, id int64) (database.ToolApproval, error) {
 	return d.store.GetToolApproval(ctx, id)
 }
 
-// evaluate is the body of flowGate.Evaluate, holding the dispatcher's state.
 func (d *Dispatcher) evaluate(ctx context.Context, flowID int64, cfg Config, req *Request) (*Resolution, error) {
 	isEnv := req.IsEnvironment
 	class := Classify(req.ToolName, isEnv, req.Args)
-	if !cfg.requiresApproval(req.ToolName, class.Risk) {
+	if !cfg.requiresApproval(req.ToolName, isEnv, class.Risk) {
 		return &Resolution{Decision: DecisionApproved, Args: req.Args}, nil
 	}
 
@@ -231,7 +212,6 @@ func (d *Dispatcher) evaluate(ctx context.Context, flowID int64, cfg Config, req
 	return d.resolve(ctx, flowID, cfg, decided)
 }
 
-// await blocks until the operator decides, the timeout fires, or ctx is done.
 func (d *Dispatcher) await(
 	ctx context.Context, cfg Config, approvalID int64, ch chan database.ToolApproval,
 ) (database.ToolApproval, error) {
@@ -255,8 +235,7 @@ func (d *Dispatcher) await(
 	}
 }
 
-// cancelAbandoned closes a request whose agent stopped waiting because its
-// chain was cancelled, so the operator is not left to decide a dead request.
+// cancelAbandoned closes a request whose agent was cancelled so the operator does not decide a dead request.
 func (d *Dispatcher) cancelAbandoned(ctx context.Context, approvalID int64) {
 	persistCtx := context.WithoutCancel(ctx)
 	updated, err := d.store.DecideToolApproval(persistCtx, database.DecideToolApprovalParams{
@@ -271,7 +250,6 @@ func (d *Dispatcher) cancelAbandoned(ctx context.Context, approvalID int64) {
 	d.pub.ToolApprovalUpdated(persistCtx, updated)
 }
 
-// onTimeout records the configured timeout outcome on a request nobody decided.
 func (d *Dispatcher) onTimeout(ctx context.Context, cfg Config, approvalID int64) (database.ToolApproval, error) {
 	reason := "approval timed out"
 	updated, err := d.store.DecideToolApproval(context.WithoutCancel(ctx), database.DecideToolApprovalParams{
@@ -290,8 +268,6 @@ func (d *Dispatcher) onTimeout(ctx context.Context, cfg Config, approvalID int64
 	return updated, nil
 }
 
-// resolve turns a decided row into a Resolution or a refusal, and pauses the
-// flow when its denial budget is spent.
 func (d *Dispatcher) resolve(ctx context.Context, flowID int64, cfg Config, decided database.ToolApproval) (*Resolution, error) {
 	switch decided.Decision {
 	case database.ToolApprovalDecisionApproved:
