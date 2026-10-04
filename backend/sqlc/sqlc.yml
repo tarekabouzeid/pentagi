@@ -23,6 +23,13 @@ sql:
             go_type: "float64"
           - db_type: "bigint"
             go_type: "int64"
+          # text columns checked by constraints (see the tool_approvals migration)
+          - column: "tool_approvals.decision"
+            go_type:
+              type: "ToolApprovalDecision"
+          - column: "tool_approvals.risk_class"
+            go_type:
+              type: "ToolRiskClass"
           # pgvector extension type — never selected in queries, but sqlc needs a mapping
           # to generate the LangchainPgEmbedding model struct in models.go.
           - db_type: "pg_catalog.vector"

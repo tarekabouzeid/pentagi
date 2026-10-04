@@ -175,3 +175,25 @@ func TestToolApprovals_CancelFlowPendingToolApprovals_LeavesOtherFlowsPending(t 
 		t.Fatalf("the other flow has %+v pending, want approval %d", left, other.ID)
 	}
 }
+
+func TestToolApprovals_Constraints_RefuseValuesOutsideTheirSets(t *testing.T) {
+	db := openSchema(t)
+	flowID := seedFlow(t, db, seedUser(t, db), time.Now().UTC())
+
+	insert := func(risk, decision string) error {
+		_, err := db.Exec(`
+			INSERT INTO tool_approvals (flow_id, agent, tool_call_id, tool_name, args, risk_class, decision)
+			VALUES ($1, 'pentester', 'c', 'terminal', '{}', $2, $3)`, flowID, risk, decision)
+		return err
+	}
+
+	if err := insert("medium", "pending"); err != nil {
+		t.Fatalf("a valid row was refused: %v", err)
+	}
+	if err := insert("severe", "pending"); err == nil {
+		t.Fatal("an unknown risk class was stored, want the check constraint to refuse it")
+	}
+	if err := insert("medium", "maybe"); err == nil {
+		t.Fatal("an unknown decision was stored, want the check constraint to refuse it")
+	}
+}

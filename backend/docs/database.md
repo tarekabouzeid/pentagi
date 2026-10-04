@@ -191,8 +191,6 @@ PostgreSQL enums are migrated explicitly and generated as Go string types in `mo
 | `CONTAINER_STATUS` | `starting`, `running`, `stopped`, `deleted`, `failed` |
 | `CONTAINER_TYPE` | `primary`, `secondary` |
 | `TOOLCALL_STATUS` | `received`, `running`, `finished`, `failed` |
-| `TOOL_APPROVAL_DECISION` | `pending`, `approved`, `edited`, `denied`, `timeout`, `cancelled` |
-| `TOOL_RISK_CLASS` | `low`, `medium`, `high`, `blocked` |
 | `TOKEN_STATUS` | `active`, `revoked` |
 | `USER_STATUS` | `created`, `active`, `blocked` |
 | `USER_TYPE` | `local`, `oauth` |
@@ -204,6 +202,8 @@ PostgreSQL enums are migrated explicitly and generated as Go string types in `mo
 | `PROVIDER_TYPE` | `openai`, `anthropic`, `gemini`, `bedrock`, `ollama`, `custom`, `deepseek`, `glm`, `kimi`, `qwen`, `minimax`, `mistral`, `xai` |
 | `SEARCHENGINE_TYPE` | `google`, `tavily`, `firecrawl`, `traversaal`, `browser`, `duckduckgo`, `perplexity`, `searxng`, `sploitus` |
 | `PROMPT_TYPE` | Agent/system prompt keys from `primary_agent` through `task_assignment_wrapper` (full list in `models.go`) |
+
+`tool_approvals.decision` (`pending`, `approved`, `edited`, `denied`, `timeout`, `cancelled`) and `tool_approvals.risk_class` (`low`, `medium`, `high`, `blocked`) are text columns with `CHECK` constraints instead of enums, so their migration can be re-run; sqlc maps them onto string types in `pkg/database/tool_approval_types.go`.
 
 Never add an enum value only in Go code. Add or replace the PostgreSQL enum in a goose migration, regenerate sqlc, and update backend validation where applicable. Provider and search-engine additions have additional project steps documented in `CLAUDE.md`.
 
