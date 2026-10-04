@@ -188,7 +188,7 @@ func TestFlowFinish_FinishUnloadedFlow_RecordsTheFlowBeforeTheSandboxSpendsTheBu
 	}
 	dkr := &budgetEatingDocker{}
 	fc, _, _ := newFinishController(q)
-	fc.docker = dkr
+	fc.sandboxes = dockerOnly(dkr)
 
 	require.NoError(t, fc.finishFlowWithin(context.Background(), flowID, 50*time.Millisecond))
 

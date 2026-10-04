@@ -652,7 +652,7 @@ func TestFlowFiles_UploadFlowFiles_StoresEachFileUnderUploadsOnly(t *testing.T) 
 			dataDir := t.TempDir()
 			ss := &flowFileCaptureSubscriptions{}
 			fakeDocker := &fakeDockerClient{running: tt.dockerRunning}
-			svc := NewFlowFileService(db, dataDir, "", fakeDocker, ss)
+			svc := NewFlowFileService(db, dataDir, "", fixedSandbox{fakeDocker}, ss)
 
 			if !tt.noFlow {
 				owner := tt.flowOwner
@@ -1127,7 +1127,7 @@ func TestFlowFiles_DeleteFlowFile_RemovesFromTheCacheAndTheContainer(t *testing.
 				execCreateErr:   tt.execCreateErr,
 				execInspectCode: tt.execInspectCode,
 			}
-			svc := NewFlowFileService(db, dataDir, "", fakeDocker, ss)
+			svc := NewFlowFileService(db, dataDir, "", fixedSandbox{fakeDocker}, ss)
 
 			if tt.seedFlow {
 				owner := tt.flowOwner
@@ -1950,7 +1950,7 @@ func TestFlowFiles_PullFlowFiles_ReportsEachPathSyncedFromTheContainer(t *testin
 			if !tt.dockerNil {
 				dockerClient = fakeDocker
 			}
-			svc := NewFlowFileService(db, dataDir, "", dockerClient, ss)
+			svc := NewFlowFileService(db, dataDir, "", fixedSandbox{dockerClient}, ss)
 
 			seedFlow(t, db, tt.flowID, tt.flowOwner)
 
@@ -2522,7 +2522,7 @@ func TestFlowFiles_GetFlowContainerFiles_ListsReadableEntriesAndSurfacesFailures
 			if !tt.dockerNil {
 				dockerClient = fakeDocker
 			}
-			svc := NewFlowFileService(db, dataDir, "", dockerClient, nil)
+			svc := NewFlowFileService(db, dataDir, "", fixedSandbox{dockerClient}, nil)
 
 			if tt.flowOwner != 0 {
 				seedFlow(t, db, tt.flowID, tt.flowOwner)

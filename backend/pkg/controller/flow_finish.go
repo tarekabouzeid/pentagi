@@ -124,13 +124,20 @@ func (fc *flowController) releaseFlowContainers(
 		return nil, err
 	}
 
+	box, err := fc.sandboxes.ForFlow(ctx, flowID)
+	if err != nil {
+		logrus.WithContext(ctx).WithError(err).
+			Warnf("failed to resolve the sandbox of flow %d, finishing it without releasing its containers", flowID)
+		return containers, nil
+	}
+
 	released := false
 	for _, container := range containers {
 		if container.Status == database.ContainerStatusDeleted || !container.LocalID.Valid {
 			continue
 		}
 
-		if err := fc.docker.RemoveContainer(ctx, container.LocalID.String, container.ID); err != nil {
+		if err := box.RemoveContainer(ctx, container.LocalID.String, container.ID); err != nil {
 			logrus.WithContext(ctx).WithError(err).
 				Warnf("failed to release container %d of flow %d", container.ID, flowID)
 			continue

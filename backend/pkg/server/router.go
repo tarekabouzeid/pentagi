@@ -119,7 +119,7 @@ func NewRouter(
 	providers providers.ProviderController,
 	controller controller.FlowController,
 	subscriptions subscriptions.SubscriptionsController,
-	dockerClient docker.DockerClient,
+	sandboxes *docker.Backends,
 	updates *update.Service,
 ) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
@@ -207,7 +207,7 @@ func NewRouter(
 	providerService := services.NewProviderService(providers)
 	settingsService := services.NewSettingsService(cfg)
 	flowService := services.NewFlowService(orm, db, providers, controller, subscriptions)
-	flowFileService := services.NewFlowFileService(orm, cfg.DataDir, cfg.TenantPrefix(), dockerClient, subscriptions)
+	flowFileService := services.NewFlowFileService(orm, cfg.DataDir, cfg.TenantPrefix(), sandboxes, subscriptions)
 	resourceService := services.NewResourceService(orm, cfg.DataDir, subscriptions)
 	taskService := services.NewTaskService(orm)
 	subtaskService := services.NewSubtaskService(orm)

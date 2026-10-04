@@ -18,6 +18,7 @@ import (
 
 	"pentagi/pkg/config"
 	"pentagi/pkg/database"
+	"pentagi/pkg/sandbox"
 
 	cerrdefs "github.com/containerd/errdefs"
 	"github.com/moby/moby/api/pkg/stdcopy"
@@ -109,6 +110,9 @@ type DockerClient interface {
 	Cleanup(ctx context.Context) error
 	GetDefaultImage() string
 }
+
+// Backends is the set of enabled sandbox runtimes, each adapted to DockerClient.
+type Backends = sandbox.Registry[DockerClient]
 
 // IsNotFound keeps the containerd error taxonomy inside this package, so callers
 // in pkg/server can ask the question without importing it themselves.

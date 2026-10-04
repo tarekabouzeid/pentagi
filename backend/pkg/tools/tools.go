@@ -23,6 +23,7 @@ import (
 	"pentagi/pkg/graph/model"
 	"pentagi/pkg/graphiti"
 	"pentagi/pkg/providers/embeddings"
+	"pentagi/pkg/sandbox"
 	"pentagi/pkg/schema"
 
 	"github.com/moby/moby/client"
@@ -41,6 +42,7 @@ type Functions struct {
 	Token    *string            `form:"token,omitempty" json:"token,omitempty" validate:"omitempty"`
 	Disabled []DisableFunction  `form:"disabled,omitempty" json:"disabled,omitempty" validate:"omitempty,valid"`
 	Function []ExternalFunction `form:"functions,omitempty" json:"functions,omitempty" validate:"omitempty,valid"`
+	Sandbox  *sandbox.Selection `form:"sandbox,omitempty" json:"sandbox,omitempty" validate:"omitempty"`
 }
 
 func (f *Functions) Scan(input any) error {

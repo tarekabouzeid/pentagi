@@ -25,6 +25,7 @@ import (
 	obs "pentagi/pkg/observability"
 	"pentagi/pkg/observability/profiling"
 	"pentagi/pkg/providers"
+	"pentagi/pkg/sandbox"
 	router "pentagi/pkg/server"
 	"pentagi/pkg/server/update"
 	"pentagi/pkg/version"
@@ -223,18 +224,25 @@ func main() {
 		logrus.WithError(err).Fatal("Docker runtime client initialization failed")
 	}
 
+	sandboxes, err := sandbox.NewRegistry(queries, sandbox.KindDocker, map[sandbox.Kind]docker.DockerClient{
+		sandbox.KindDocker: client,
+	})
+	if err != nil {
+		logrus.WithError(err).Fatal("Sandbox runtimes initialization failed")
+	}
+
 	providers, err := providers.NewProviderController(cfg, queries, client)
 	if err != nil {
 		logrus.WithError(err).Fatal("LLM provider controller initialization failed")
 	}
 	subscriptions := subscriptions.NewSubscriptionsController()
-	controller := controller.NewFlowController(queries, cfg, client, providers, subscriptions)
+	controller := controller.NewFlowController(queries, cfg, sandboxes, providers, subscriptions)
 
 	if err := controller.LoadFlows(ctx); err != nil {
 		logrus.WithError(err).Fatal("Active flows restoration failed")
 	}
 
-	r := router.NewRouter(queries, orm, cfg, providers, controller, subscriptions, client, updates)
+	r := router.NewRouter(queries, orm, cfg, providers, controller, subscriptions, sandboxes, updates)
 
 	// Launch HTTP/HTTPS server in background goroutine
 	serverErrChan := make(chan error, 1)

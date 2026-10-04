@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"slices"
 	"sync"
@@ -16,6 +17,7 @@ import (
 	"pentagi/pkg/graphiti"
 	"pentagi/pkg/providers"
 	"pentagi/pkg/providers/provider"
+	"pentagi/pkg/sandbox"
 	"pentagi/pkg/templates"
 	"pentagi/pkg/tools"
 
@@ -326,12 +328,29 @@ func newFinishController(q database.Querier) (*flowController, *cascadeFakePubli
 	dkr := &finishFakeDocker{}
 
 	return &flowController{
-		db:     q,
-		mx:     &sync.Mutex{},
-		flows:  map[int64]*flowEntry{},
-		subs:   &cascadeFakeSubscriptions{pub: pub},
-		docker: dkr,
+		db:        q,
+		mx:        &sync.Mutex{},
+		flows:     map[int64]*flowEntry{},
+		subs:      &cascadeFakeSubscriptions{pub: pub},
+		sandboxes: dockerOnly(dkr),
 	}, pub, dkr
+}
+
+type noStoredFlows struct{}
+
+func (noStoredFlows) GetFlow(context.Context, int64) (database.Flow, error) {
+	return database.Flow{}, sql.ErrNoRows
+}
+
+// dockerOnly binds every flow to d without reading the test's querier.
+func dockerOnly(d docker.DockerClient) *docker.Backends {
+	boxes, err := sandbox.NewRegistry(noStoredFlows{}, sandbox.KindDocker, map[sandbox.Kind]docker.DockerClient{
+		sandbox.KindDocker: d,
+	})
+	if err != nil {
+		panic(err)
+	}
+	return boxes
 }
 
 type callerFakeExecutor struct {
@@ -404,7 +423,7 @@ func (f *createFakeQuerier) CreateFlow(ctx context.Context, arg database.CreateF
 	if f.createErr != nil {
 		return database.Flow{}, f.createErr
 	}
-	f.flow = database.Flow{ID: reservedFlowID, UserID: arg.UserID, Status: arg.Status, Title: arg.Title}
+	f.flow = database.Flow{ID: reservedFlowID, UserID: arg.UserID, Status: arg.Status, Title: arg.Title, Functions: arg.Functions}
 
 	return f.flow, nil
 }
@@ -788,10 +807,11 @@ func lifecycleAssistantCtx(q database.Querier, provs providers.ProviderControlle
 		prvtype:   provider.ProviderType("custom"),
 		functions: &tools.Functions{},
 		flowWorkerCtx: flowWorkerCtx{
-			db:    q,
-			cfg:   &config.Config{},
-			provs: provs,
-			subs:  &cascadeFakeSubscriptions{pub: &cascadeFakePublisher{}},
+			db:        q,
+			cfg:       &config.Config{},
+			sandboxes: dockerOnly(nil),
+			provs:     provs,
+			subs:      &cascadeFakeSubscriptions{pub: &cascadeFakePublisher{}},
 			flowProviderControllers: flowProviderControllers{
 				aslc: &lifecycleLogController{log: &lifecycleAssistantLog{}},
 				alc:  lifecycleWorkerControllers{},

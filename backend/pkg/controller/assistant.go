@@ -212,7 +212,11 @@ func buildAssistantWorker(
 	if err != nil {
 		return nil, wrapErrorEndSpan(ctx, assistantSpan, "failed to build user prompter", err)
 	}
-	executor, err := tools.NewFlowToolsExecutor(awc.db, awc.cfg, awc.docker, awc.functions, awc.userID, awc.flowID)
+	box, err := awc.sandboxes.ForFlow(ctx, awc.flowID)
+	if err != nil {
+		return nil, wrapErrorEndSpan(ctx, assistantSpan, "failed to resolve the flow sandbox", err)
+	}
+	executor, err := tools.NewFlowToolsExecutor(awc.db, awc.cfg, box, awc.functions, awc.userID, awc.flowID)
 	if err != nil {
 		return nil, wrapErrorEndSpan(ctx, assistantSpan, "failed to create flow tools executor", err)
 	}
@@ -404,7 +408,11 @@ func LoadAssistantWorker(
 			return nil, wrapErrorEndSpan(ctx, assistantSpan, "failed to build user prompter", err)
 		}
 	}
-	executor, err := tools.NewFlowToolsExecutor(awc.db, awc.cfg, awc.docker, functions, awc.userID, awc.flowID)
+	box, err := awc.sandboxes.ForFlow(ctx, awc.flowID)
+	if err != nil {
+		return nil, wrapErrorEndSpan(ctx, assistantSpan, "failed to resolve the flow sandbox", err)
+	}
+	executor, err := tools.NewFlowToolsExecutor(awc.db, awc.cfg, box, functions, awc.userID, awc.flowID)
 	if err != nil {
 		return nil, wrapErrorEndSpan(ctx, assistantSpan, "failed to create flow tools executor", err)
 	}

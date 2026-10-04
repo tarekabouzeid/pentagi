@@ -16,6 +16,8 @@ import (
 	"pentagi/pkg/providers"
 	"pentagi/pkg/providers/provider"
 	"pentagi/pkg/providers/tester/mock"
+	"pentagi/pkg/sandbox"
+	"pentagi/pkg/tools"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -249,12 +251,12 @@ func newCreatingController(t *testing.T, buildErr error) *creatingController {
 	}
 
 	c.fc = &flowController{
-		db:     q,
-		mx:     &sync.Mutex{},
-		flows:  map[int64]*flowEntry{},
-		subs:   &cascadeFakeSubscriptions{pub: pub},
-		docker: &finishFakeDocker{},
-		mlc:    NewMsgLogController(q),
+		db:        q,
+		mx:        &sync.Mutex{},
+		flows:     map[int64]*flowEntry{},
+		subs:      &cascadeFakeSubscriptions{pub: pub},
+		sandboxes: dockerOnly(&finishFakeDocker{}),
+		mlc:       NewMsgLogController(q),
 		build: func(ctx context.Context, _ database.Flow, _ newFlowWorkerCtx, commit func() error) (FlowWorker, error) {
 			if c.commitsBeforeRelease {
 				if err := commit(); err != nil {
@@ -363,6 +365,31 @@ func TestFlows_CreateFlow_AnswersAndAnnouncesTheFlowBeforePreparingIt(t *testing
 	c.waitForPreparation(t)
 	close(c.release)
 	c.waitUntilSettled(t)
+}
+
+func TestFlows_CreateFlow_RecordsTheSandboxInTheFlowsFirstRow(t *testing.T) {
+	c := newCreatingController(t, nil)
+
+	c.create(t)
+	c.waitForPreparation(t)
+
+	c.q.mx.Lock()
+	stored := c.q.flow.Functions
+	c.q.mx.Unlock()
+	assert.JSONEq(t, `{"sandbox":{"backend":"docker"}}`, string(stored))
+
+	close(c.release)
+	c.waitUntilSettled(t)
+}
+
+func TestFlows_CreateFlow_RefusesASandboxThatIsNotEnabled(t *testing.T) {
+	c := newCreatingController(t, nil)
+	functions := &tools.Functions{Sandbox: &sandbox.Selection{Backend: sandbox.KindOpenShell}}
+
+	_, err := c.fc.CreateFlow(context.Background(), 1, "scan it", "anthropic", "anthropic", functions, nil)
+
+	require.ErrorIs(t, err, sandbox.ErrUnavailable)
+	assert.False(t, c.registered(), "a refused flow is never reserved")
 }
 
 func TestFlows_GetFlow_ServesAFlowOnlyOnceItIsPrepared(t *testing.T) {
@@ -664,7 +691,7 @@ func newGatedController(t *testing.T) (*flowController, *gatedFlowWorker) {
 		entered:        make(chan string, 4),
 		release:        make(chan struct{}),
 	}
-	fc.docker = &gatedDocker{gated: gated}
+	fc.sandboxes = dockerOnly(&gatedDocker{gated: gated})
 	fc.register(gatedFlowID, gated)
 	fc.register(otherFlowID, &noopFlowWorker{flowID: otherFlowID})
 
@@ -826,7 +853,7 @@ func newTearingDownController(t *testing.T) (*creatingController, *gatedFlowWork
 		entered:        make(chan string, 4),
 		release:        make(chan struct{}),
 	}
-	c.fc.docker = &gatedDocker{gated: gated}
+	c.fc.sandboxes = dockerOnly(&gatedDocker{gated: gated})
 
 	return c, gated
 }
@@ -938,7 +965,7 @@ func TestFlows_FinishFlow_RunsTheQueuedTeardownsOfAnUnloadedFlowOneAtATime(t *te
 	for _, name := range []string{"a", "b", "c"} {
 		d.releases[name] = make(chan struct{})
 	}
-	fc.docker = d
+	fc.sandboxes = dockerOnly(d)
 	released := map[string]bool{}
 	release := func(name string) {
 		released[name] = true

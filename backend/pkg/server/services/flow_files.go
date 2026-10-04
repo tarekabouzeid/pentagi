@@ -58,24 +58,36 @@ type FlowFileService struct {
 	dataDir      string
 	tenantPrefix string
 	db           *gorm.DB
-	dockerClient docker.DockerClient
+	sandboxes    SandboxResolver
 	ss           subscriptions.SubscriptionsController
+}
+
+// SandboxResolver returns the runtime a flow's containers live in.
+type SandboxResolver interface {
+	ForFlow(ctx context.Context, flowID int64) (docker.DockerClient, error)
 }
 
 func NewFlowFileService(
 	db *gorm.DB,
 	dataDir string,
 	tenantPrefix string,
-	dockerClient docker.DockerClient,
+	sandboxes SandboxResolver,
 	ss subscriptions.SubscriptionsController,
 ) *FlowFileService {
 	return &FlowFileService{
 		dataDir:      dataDir,
 		tenantPrefix: tenantPrefix,
 		db:           db,
-		dockerClient: dockerClient,
+		sandboxes:    sandboxes,
 		ss:           ss,
 	}
+}
+
+func (s *FlowFileService) sandbox(ctx context.Context, flowID uint64) (docker.DockerClient, error) {
+	if s.sandboxes == nil {
+		return nil, nil
+	}
+	return s.sandboxes.ForFlow(ctx, int64(flowID))
 }
 
 // GetFlowFiles is a function to return flow files list
@@ -734,7 +746,13 @@ func (s *FlowFileService) PullFlowFiles(c *gin.Context) {
 		return
 	}
 
-	if s.dockerClient == nil {
+	sandbox, err := s.sandbox(c.Request.Context(), flowID)
+	if err != nil {
+		logger.FromContext(c).WithError(err).WithField("flow_id", flowID).Error("failed to resolve the flow sandbox for pull")
+		response.Error(c, response.ErrInternal, err)
+		return
+	}
+	if sandbox == nil {
 		err = errors.New("docker client not configured on this server")
 		logger.FromContext(c).WithError(err).WithField("flow_id", flowID).Error("docker client unavailable for pull")
 		response.Error(c, response.ErrInternal, err)
@@ -742,7 +760,7 @@ func (s *FlowFileService) PullFlowFiles(c *gin.Context) {
 	}
 
 	containerName := primaryContainerName(s.tenantPrefix, flowID)
-	running, err := s.dockerClient.IsContainerRunning(c.Request.Context(), containerName)
+	running, err := sandbox.IsContainerRunning(c.Request.Context(), containerName)
 	if err != nil {
 		logger.FromContext(c).WithError(err).WithFields(map[string]any{
 			"flow_id":        flowID,
@@ -764,7 +782,7 @@ func (s *FlowFileService) PullFlowFiles(c *gin.Context) {
 	updatedFiles := make([]models.FlowFile, 0)
 
 	for _, entry := range entries {
-		reader, _, err := s.dockerClient.CopyFromContainer(c.Request.Context(), containerName, entry.containerPath)
+		reader, _, err := sandbox.CopyFromContainer(c.Request.Context(), containerName, entry.containerPath)
 		if err != nil {
 			logger.FromContext(c).WithError(err).WithFields(map[string]any{
 				"flow_id":        flowID,
@@ -959,7 +977,13 @@ func (s *FlowFileService) GetFlowContainerFiles(c *gin.Context) {
 		return
 	}
 
-	if s.dockerClient == nil {
+	sandbox, err := s.sandbox(c.Request.Context(), flowID)
+	if err != nil {
+		logger.FromContext(c).WithError(err).WithField("flow_id", flowID).Error("failed to resolve the flow sandbox for container files list")
+		response.Error(c, response.ErrInternal, err)
+		return
+	}
+	if sandbox == nil {
 		err = errors.New("docker client not configured on this server")
 		logger.FromContext(c).WithError(err).WithField("flow_id", flowID).Error("docker client unavailable for container files list")
 		response.Error(c, response.ErrInternal, err)
@@ -993,7 +1017,7 @@ func (s *FlowFileService) GetFlowContainerFiles(c *gin.Context) {
 	}
 
 	containerName := primaryContainerName(s.tenantPrefix, flowID)
-	running, err := s.dockerClient.IsContainerRunning(c.Request.Context(), containerName)
+	running, err := sandbox.IsContainerRunning(c.Request.Context(), containerName)
 	if err != nil {
 		logger.FromContext(c).WithError(err).WithFields(map[string]any{
 			"flow_id":        flowID,
@@ -1054,7 +1078,7 @@ func (s *FlowFileService) GetFlowContainerFiles(c *gin.Context) {
 	}
 
 	for _, containerPath := range containerPaths {
-		pathStat, err := s.dockerClient.ContainerStatPath(c.Request.Context(), containerName, containerPath)
+		pathStat, err := sandbox.ContainerStatPath(c.Request.Context(), containerName, containerPath)
 		if err != nil {
 			if cerr := c.Request.Context().Err(); cerr != nil {
 				response.Error(c, response.ErrInternal, cerr)
@@ -1074,7 +1098,7 @@ func (s *FlowFileService) GetFlowContainerFiles(c *gin.Context) {
 			continue
 		}
 
-		listing, err := s.dockerClient.ListContainerDir(c.Request.Context(), containerName, containerPath)
+		listing, err := sandbox.ListContainerDir(c.Request.Context(), containerName, containerPath)
 		if err != nil {
 			if cerr := c.Request.Context().Err(); cerr != nil {
 				response.Error(c, response.ErrInternal, cerr)
@@ -1269,12 +1293,16 @@ func (s *FlowFileService) resolveCachedPath(flowID uint64, reqPath string) (stri
 // "resources/dir/b.yml"). One tar archive and one CopyToContainer call per invocation.
 // Returns nil when Docker is unavailable, the container is not running, or entries is empty.
 func (s *FlowFileService) copyLocalFilesToPrimaryWork(ctx context.Context, flowID uint64, entries []flowfiles.TarEntry) error {
-	if s.dockerClient == nil || len(entries) == 0 {
+	if len(entries) == 0 {
 		return nil
+	}
+	sandbox, err := s.sandbox(ctx, flowID)
+	if err != nil || sandbox == nil {
+		return err
 	}
 
 	containerName := primaryContainerName(s.tenantPrefix, flowID)
-	running, err := s.dockerClient.IsContainerRunning(ctx, containerName)
+	running, err := sandbox.IsContainerRunning(ctx, containerName)
 	if err != nil || !running {
 		return nil
 	}
@@ -1285,7 +1313,7 @@ func (s *FlowFileService) copyLocalFilesToPrimaryWork(ctx context.Context, flowI
 		errCh <- flowfiles.WriteFilesTar(pw, entries)
 	}()
 
-	copyErr := s.dockerClient.CopyToContainer(ctx, containerName, docker.WorkFolderPathInContainer, pr,
+	copyErr := sandbox.CopyToContainer(ctx, containerName, docker.WorkFolderPathInContainer, pr,
 		client.CopyToContainerOptions{AllowOverwriteDirWithFile: true})
 	pr.Close()
 	writeErr := <-errCh
@@ -1334,8 +1362,12 @@ func (s *FlowFileService) pushResourcePathsToContainer(c *gin.Context, flowID ui
 // the running container. When Docker is unavailable or the container is not running,
 // the function returns nil — the cache divergence will be resolved on next container start.
 func (s *FlowFileService) deleteUploadsFromContainer(ctx context.Context, flowID uint64, reqPaths []string) error {
-	if s.dockerClient == nil || len(reqPaths) == 0 {
+	if len(reqPaths) == 0 {
 		return nil
+	}
+	sandbox, err := s.sandbox(ctx, flowID)
+	if err != nil || sandbox == nil {
+		return err
 	}
 
 	// Collect container-side paths for entries that mirror into /work (uploads/ and resources/ only).
@@ -1353,7 +1385,7 @@ func (s *FlowFileService) deleteUploadsFromContainer(ctx context.Context, flowID
 	}
 
 	containerName := primaryContainerName(s.tenantPrefix, flowID)
-	running, err := s.dockerClient.IsContainerRunning(ctx, containerName)
+	running, err := sandbox.IsContainerRunning(ctx, containerName)
 	if err != nil {
 		return nil // container absent or unavailable — cache deletion will be synced on next start
 	}
@@ -1368,7 +1400,7 @@ func (s *FlowFileService) deleteUploadsFromContainer(ctx context.Context, flowID
 	}
 	cmd := "rm -rf -- " + strings.Join(quotedPaths, " ")
 
-	createResp, err := s.dockerClient.ContainerExecCreate(ctx, containerName, client.ExecCreateOptions{
+	createResp, err := sandbox.ContainerExecCreate(ctx, containerName, client.ExecCreateOptions{
 		Cmd:          []string{"sh", "-c", cmd},
 		AttachStdout: true,
 		AttachStderr: true,
@@ -1377,7 +1409,7 @@ func (s *FlowFileService) deleteUploadsFromContainer(ctx context.Context, flowID
 		return fmt.Errorf("failed to create container delete exec: %w", err)
 	}
 
-	resp, err := s.dockerClient.ContainerExecAttach(ctx, createResp.ID, client.ExecAttachOptions{})
+	resp, err := sandbox.ContainerExecAttach(ctx, createResp.ID, client.ExecAttachOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to attach container delete exec: %w", err)
 	}
@@ -1387,7 +1419,7 @@ func (s *FlowFileService) deleteUploadsFromContainer(ctx context.Context, flowID
 		return fmt.Errorf("failed to read container delete output: %w", copyErr)
 	}
 
-	inspect, err := s.dockerClient.ContainerExecInspect(ctx, createResp.ID)
+	inspect, err := sandbox.ContainerExecInspect(ctx, createResp.ID)
 	if err != nil {
 		return fmt.Errorf("failed to inspect container delete exec: %w", err)
 	}

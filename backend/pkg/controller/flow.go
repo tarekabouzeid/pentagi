@@ -25,6 +25,7 @@ import (
 	"pentagi/pkg/providers/pconfig"
 	"pentagi/pkg/providers/provider"
 	"pentagi/pkg/resources"
+	"pentagi/pkg/sandbox"
 	"pentagi/pkg/tools"
 
 	"github.com/moby/moby/client"
@@ -91,11 +92,11 @@ type newFlowWorkerCtx struct {
 }
 
 type flowWorkerCtx struct {
-	db     database.Querier
-	cfg    *config.Config
-	docker docker.DockerClient
-	provs  providers.ProviderController
-	subs   subscriptions.SubscriptionsController
+	db        database.Querier
+	cfg       *config.Config
+	sandboxes *docker.Backends
+	provs     providers.ProviderController
+	subs      subscriptions.SubscriptionsController
 
 	flowProviderControllers
 }
@@ -143,6 +144,21 @@ func reserveFlow(ctx context.Context, fwc newFlowWorkerCtx) (database.Flow, erro
 	ctx, span := obs.Observer.NewSpan(ctx, obs.SpanKindInternal, "controller.reserveFlow")
 	defer span.End()
 
+	var requested *sandbox.Selection
+	if fwc.functions != nil {
+		requested = fwc.functions.Sandbox
+	}
+	selected, err := fwc.sandboxes.Select(requested)
+	if err != nil {
+		return database.Flow{}, fmt.Errorf("failed to select the flow sandbox: %w", err)
+	}
+	// The flow is bound to its runtime from its first row on, so a cleanup that
+	// runs before the worker is built still finds the runtime that owns it.
+	functionsBlob, err := json.Marshal(tools.Functions{Sandbox: &selected})
+	if err != nil {
+		return database.Flow{}, fmt.Errorf("failed to marshal the flow sandbox: %w", err)
+	}
+
 	flow, err := fwc.db.CreateFlow(ctx, database.CreateFlowParams{
 		Title:              "untitled",
 		Status:             database.FlowStatusCreated,
@@ -151,7 +167,7 @@ func reserveFlow(ctx context.Context, fwc newFlowWorkerCtx) (database.Flow, erro
 		ModelProviderType:  database.ProviderType(fwc.prvtype),
 		Language:           "English",
 		ToolCallIDTemplate: cast.ToolCallIDTemplate,
-		Functions:          []byte("{}"),
+		Functions:          functionsBlob,
 		UserID:             fwc.userID,
 	})
 	if err != nil {
@@ -210,11 +226,25 @@ func buildFlowWorker(
 	flowSpan := observation.Span(langfuse.WithSpanName("prepare flow worker"))
 	ctx, _ = flowSpan.Observation(ctx)
 
+	selected, err := sandbox.SelectionFromFunctions(flow.Functions)
+	if err != nil {
+		return nil, wrapErrorEndSpan(ctx, flowSpan, "failed to read the flow sandbox", err)
+	}
+	box, err := fwc.sandboxes.Bind(flow.ID, selected)
+	if err != nil {
+		return nil, wrapErrorEndSpan(ctx, flowSpan, "failed to bind the flow sandbox", err)
+	}
+	functions := tools.Functions{}
+	if fwc.functions != nil {
+		functions = *fwc.functions
+	}
+	functions.Sandbox = &selected
+
 	prompter, err := newUserPrompter(ctx, fwc.db, fwc.userID)
 	if err != nil {
 		return nil, wrapErrorEndSpan(ctx, flowSpan, "failed to build user prompter", err)
 	}
-	executor, err := tools.NewFlowToolsExecutor(fwc.db, fwc.cfg, fwc.docker, fwc.functions, fwc.userID, flow.ID)
+	executor, err := tools.NewFlowToolsExecutor(fwc.db, fwc.cfg, box, &functions, fwc.userID, flow.ID)
 	if err != nil {
 		return nil, wrapErrorEndSpan(ctx, flowSpan, "failed to create flow tools executor", err)
 	}
@@ -225,7 +255,7 @@ func buildFlowWorker(
 		return nil, wrapErrorEndSpan(ctx, flowSpan, "failed to get flow provider", err)
 	}
 
-	functionsBlob, err := json.Marshal(fwc.functions)
+	functionsBlob, err := json.Marshal(functions)
 	if err != nil {
 		return nil, wrapErrorEndSpan(ctx, flowSpan, "failed to marshal functions", err)
 	}
@@ -292,7 +322,7 @@ func buildFlowWorker(
 		taskCCH: make(chan struct{}),
 		input:   make(chan flowInput),
 		flowCtx: flowCtx,
-		docker:  fwc.docker,
+		docker:  box,
 		logger: logrus.WithFields(logrus.Fields{
 			"flow_id":   flow.ID,
 			"user_id":   fwc.userID,
@@ -398,7 +428,15 @@ func LoadFlowWorker(ctx context.Context, flow database.Flow, fwc flowWorkerCtx) 
 	if err != nil {
 		return nil, wrapErrorEndSpan(ctx, flowSpan, "failed to build user prompter", err)
 	}
-	executor, err := tools.NewFlowToolsExecutor(fwc.db, fwc.cfg, fwc.docker, functions, flow.UserID, flow.ID)
+	var selected sandbox.Selection
+	if functions.Sandbox != nil {
+		selected = *functions.Sandbox
+	}
+	box, err := fwc.sandboxes.Bind(flow.ID, selected)
+	if err != nil {
+		return nil, wrapErrorEndSpan(ctx, flowSpan, "failed to bind the flow sandbox", err)
+	}
+	executor, err := tools.NewFlowToolsExecutor(fwc.db, fwc.cfg, box, functions, flow.UserID, flow.ID)
 	if err != nil {
 		return nil, wrapErrorEndSpan(ctx, flowSpan, "failed to create flow tools executor", err)
 	}
@@ -460,7 +498,7 @@ func LoadFlowWorker(ctx context.Context, flow database.Flow, fwc flowWorkerCtx) 
 		taskCCH: make(chan struct{}),
 		input:   make(chan flowInput),
 		flowCtx: flowCtx,
-		docker:  fwc.docker,
+		docker:  box,
 		logger: logrus.WithFields(logrus.Fields{
 			"flow_id":   flow.ID,
 			"user_id":   flow.UserID,

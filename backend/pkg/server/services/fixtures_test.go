@@ -18,6 +18,7 @@ import (
 	"testing"
 	"time"
 
+	"pentagi/pkg/docker"
 	"pentagi/pkg/resources"
 	"pentagi/pkg/server/models"
 	"pentagi/pkg/server/oauth"
@@ -389,4 +390,13 @@ func authOAuthCallback(t *testing.T, svc *AuthService, header http.Header) (*gin
 	svc.AuthLoginGetCallback(c)
 
 	return c, w
+}
+
+// fixedSandbox resolves every flow to one runtime.
+type fixedSandbox struct {
+	docker.DockerClient
+}
+
+func (f fixedSandbox) ForFlow(context.Context, int64) (docker.DockerClient, error) {
+	return f.DockerClient, nil
 }
