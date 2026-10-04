@@ -46,6 +46,11 @@ const settings: ResultOf<typeof SettingsDocument> = {
         debug: false,
         dockerInside: false,
         isDevelopMode: false,
+        sandbox: entity('SandboxSettings', {
+            backends: ['docker'],
+            defaultBackend: 'docker',
+            openshellPresets: [],
+        }),
         version: 'e2e',
     }),
 };

@@ -33,6 +33,12 @@ export function SystemSettingsProvider({ children }: { children: ReactNode }) {
     return <SystemSettingsContext value={value}>{children}</SystemSettingsContext>;
 }
 
+// useOptionalSystemSettings is for UI that adapts to the server's settings but
+// must still render, without them, where no provider is mounted.
+export function useOptionalSystemSettings() {
+    return use(SystemSettingsContext) ?? null;
+}
+
 export function useSystemSettings() {
     const context = use(SystemSettingsContext);
 

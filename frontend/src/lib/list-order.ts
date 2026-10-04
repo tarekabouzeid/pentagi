@@ -16,6 +16,7 @@ export const listOrder = {
     searchLogs: 'chronological',
     tasks: 'chronological',
     terminalLogs: 'chronological',
+    toolApprovals: 'newestFirst',
     vectorStoreLogs: 'chronological',
 } as const satisfies Record<string, ListOrder>;
 

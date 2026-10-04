@@ -32,6 +32,8 @@ import {
     TaskCreatedDocument,
     TaskUpdatedDocument,
     TerminalLogAddedDocument,
+    ToolApprovalRequestedDocument,
+    ToolApprovalUpdatedDocument,
     VectorStoreLogAddedDocument,
 } from '@/graphql/types';
 import { lastLocalWriteAt } from '@/lib/apollo';
@@ -230,6 +232,8 @@ export function FlowProvider({ children }: FlowProviderProps) {
     useSubscription(AgentLogAddedDocument, { skip: subscriptionSkip, variables: subscriptionVariables });
     useSubscription(SearchLogAddedDocument, { skip: subscriptionSkip, variables: subscriptionVariables });
     useSubscription(VectorStoreLogAddedDocument, { skip: subscriptionSkip, variables: subscriptionVariables });
+    useSubscription(ToolApprovalRequestedDocument, { skip: subscriptionSkip, variables: subscriptionVariables });
+    useSubscription(ToolApprovalUpdatedDocument, { skip: subscriptionSkip, variables: subscriptionVariables });
 
     useSubscription(AssistantCreatedDocument, { skip: subscriptionSkip, variables: subscriptionVariables });
     useSubscription(AssistantUpdatedDocument, { skip: subscriptionSkip, variables: subscriptionVariables });

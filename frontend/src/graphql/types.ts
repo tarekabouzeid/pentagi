@@ -280,6 +280,11 @@ export enum RiskClass {
     Medium = 'medium',
 }
 
+export type SandboxConfigInput = {
+    backend?: string | null | undefined;
+    profile?: string | null | undefined;
+};
+
 export enum StatusType {
     Created = 'created',
     Failed = 'failed',
@@ -361,6 +366,7 @@ export type SettingsFragmentFragment = {
     dockerInside: boolean;
     isDevelopMode: boolean;
     assistantUseAgents: boolean;
+    sandbox: { backends: Array<string>; defaultBackend: string; openshellPresets: Array<string> };
 };
 
 export type VersionInfoFragmentFragment = {
@@ -1124,6 +1130,7 @@ export type CreateFlowMutationVariables = Exact<{
     input: string;
     resourceIds?: Array<string | number> | string | number | null | undefined;
     hitl?: HitlConfigInput | null | undefined;
+    sandbox?: SandboxConfigInput | null | undefined;
 }>;
 
 export type CreateFlowMutation = { createFlow: FlowFragmentFragment };
@@ -1556,6 +1563,18 @@ export const SettingsFragmentFragmentDoc = {
                     { kind: 'Field', name: { kind: 'Name', value: 'dockerInside' } },
                     { kind: 'Field', name: { kind: 'Name', value: 'isDevelopMode' } },
                     { kind: 'Field', name: { kind: 'Name', value: 'assistantUseAgents' } },
+                    {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'sandbox' },
+                        selectionSet: {
+                            kind: 'SelectionSet',
+                            selections: [
+                                { kind: 'Field', name: { kind: 'Name', value: 'backends' } },
+                                { kind: 'Field', name: { kind: 'Name', value: 'defaultBackend' } },
+                                { kind: 'Field', name: { kind: 'Name', value: 'openshellPresets' } },
+                            ],
+                        },
+                    },
                 ],
             },
         },
@@ -3710,6 +3729,18 @@ export const SettingsDocument = {
                     { kind: 'Field', name: { kind: 'Name', value: 'dockerInside' } },
                     { kind: 'Field', name: { kind: 'Name', value: 'isDevelopMode' } },
                     { kind: 'Field', name: { kind: 'Name', value: 'assistantUseAgents' } },
+                    {
+                        kind: 'Field',
+                        name: { kind: 'Name', value: 'sandbox' },
+                        selectionSet: {
+                            kind: 'SelectionSet',
+                            selections: [
+                                { kind: 'Field', name: { kind: 'Name', value: 'backends' } },
+                                { kind: 'Field', name: { kind: 'Name', value: 'defaultBackend' } },
+                                { kind: 'Field', name: { kind: 'Name', value: 'openshellPresets' } },
+                            ],
+                        },
+                    },
                 ],
             },
         },
@@ -8030,6 +8061,11 @@ export const CreateFlowDocument = {
                     variable: { kind: 'Variable', name: { kind: 'Name', value: 'hitl' } },
                     type: { kind: 'NamedType', name: { kind: 'Name', value: 'HitlConfigInput' } },
                 },
+                {
+                    kind: 'VariableDefinition',
+                    variable: { kind: 'Variable', name: { kind: 'Name', value: 'sandbox' } },
+                    type: { kind: 'NamedType', name: { kind: 'Name', value: 'SandboxConfigInput' } },
+                },
             ],
             selectionSet: {
                 kind: 'SelectionSet',
@@ -8057,6 +8093,11 @@ export const CreateFlowDocument = {
                                 kind: 'Argument',
                                 name: { kind: 'Name', value: 'hitl' },
                                 value: { kind: 'Variable', name: { kind: 'Name', value: 'hitl' } },
+                            },
+                            {
+                                kind: 'Argument',
+                                name: { kind: 'Name', value: 'sandbox' },
+                                value: { kind: 'Variable', name: { kind: 'Name', value: 'sandbox' } },
                             },
                         ],
                         selectionSet: {

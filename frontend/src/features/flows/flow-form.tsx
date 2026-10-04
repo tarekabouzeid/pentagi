@@ -42,16 +42,22 @@ import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useResourcesUpload } from '@/features/resources/use-resources-upload';
+import { HitlMode } from '@/graphql/types';
 import { useAppForm } from '@/hooks/use-app-form';
 import { getProviderDisplayName } from '@/models/provider';
 import { useProviders } from '@/providers/providers-provider';
 import { useResources } from '@/providers/resources-provider';
 import { type Template, useTemplates } from '@/providers/templates-provider';
 
+import { FlowRunOptions } from './flow-run-options';
+
 const formSchema = z.object({
+    hitlMode: z.enum(HitlMode).optional(),
     message: z.string().trim().min(1, { message: 'Message cannot be empty' }),
     providerName: z.string().trim().min(1, { message: 'Provider must be selected' }),
     resourceIds: z.array(z.string()),
+    sandboxBackend: z.string().optional(),
+    sandboxProfile: z.string().optional(),
     useAgents: z.boolean(),
 });
 
@@ -65,6 +71,9 @@ export interface FlowFormProps {
     onCancel?: () => Promise<void> | void;
     onSubmit: (values: FlowFormValues) => boolean | Promise<boolean>;
     placeholder?: string;
+    // showRunOptions offers the per-flow approval and sandbox choices; only the
+    // form that creates a flow sets it.
+    showRunOptions?: boolean;
     type: 'assistant' | 'automation';
 }
 
@@ -80,6 +89,7 @@ export function FlowForm({
     onCancel,
     onSubmit,
     placeholder = 'Describe what you would like PentAGI to test...',
+    showRunOptions,
     type,
 }: FlowFormProps) {
     const { providers, setSelectedProvider } = useProviders();
@@ -147,9 +157,12 @@ export function FlowForm({
 
     const form = useAppForm<FlowFormValues>({
         defaultValues: {
+            hitlMode: defaultValues?.hitlMode,
             message: defaultValues?.message ?? '',
             providerName: defaultValues?.providerName ?? '',
             resourceIds: defaultValues?.resourceIds ?? [],
+            sandboxBackend: defaultValues?.sandboxBackend,
+            sandboxProfile: defaultValues?.sandboxProfile,
             useAgents: defaultValues?.useAgents ?? false,
         },
         schema: formSchema,
@@ -644,6 +657,13 @@ export function FlowForm({
                                             );
                                         }}
                                     />
+
+                                    {showRunOptions && type === 'automation' && (
+                                        <FlowRunOptions
+                                            control={control}
+                                            disabled={isFormDisabled}
+                                        />
+                                    )}
 
                                     {type === 'assistant' && (
                                         <FormField

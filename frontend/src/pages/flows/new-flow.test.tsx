@@ -24,6 +24,7 @@ vi.mock('@/providers/providers-provider', () => ({
 }));
 
 vi.mock('@/providers/system-settings-provider', () => ({
+    useOptionalSystemSettings: () => null,
     useSystemSettings: () => ({ settings: { assistantUseAgents: false } }),
 }));
 

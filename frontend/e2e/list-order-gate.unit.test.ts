@@ -18,6 +18,7 @@ const servedBy = {
     searchLogs: ['searchlogs.sql', ['GetFlowSearchLogs']],
     tasks: ['tasks.sql', ['GetFlowTasks']],
     terminalLogs: ['termlogs.sql', ['GetFlowTermLogs']],
+    toolApprovals: ['tool_approvals.sql', ['GetFlowToolApprovals']],
     vectorStoreLogs: ['vecstorelogs.sql', ['GetFlowVectorStoreLogs']],
 } as const satisfies Record<string, readonly [string, readonly string[]]>;
 

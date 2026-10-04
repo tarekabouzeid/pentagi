@@ -7,6 +7,11 @@ fragment settingsFragment on Settings {
     dockerInside
     isDevelopMode
     assistantUseAgents
+    sandbox {
+        backends
+        defaultBackend
+        openshellPresets
+    }
 }
 
 fragment versionInfoFragment on VersionInfo {
@@ -1101,8 +1106,8 @@ mutation deleteFlowTemplate($templateId: ID!) {
 
 # ==================== Flows ====================
 
-mutation createFlow($modelProvider: String!, $input: String!, $resourceIds: [ID!], $hitl: HitlConfigInput) {
-    createFlow(modelProvider: $modelProvider, input: $input, resourceIds: $resourceIds, hitl: $hitl) {
+mutation createFlow($modelProvider: String!, $input: String!, $resourceIds: [ID!], $hitl: HitlConfigInput, $sandbox: SandboxConfigInput) {
+    createFlow(modelProvider: $modelProvider, input: $input, resourceIds: $resourceIds, hitl: $hitl, sandbox: $sandbox) {
         ...flowFragment
     }
 }

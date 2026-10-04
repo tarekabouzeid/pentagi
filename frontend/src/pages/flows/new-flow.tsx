@@ -93,6 +93,7 @@ function NewFlow() {
                                         : 'What would you like me to help you with?'
                                     : 'Creating a new flow...'
                             }
+                            showRunOptions={flowType === 'automation'}
                             type={flowType}
                         />
                     </CardContent>

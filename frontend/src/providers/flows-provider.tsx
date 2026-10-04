@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import type { FlowFormValues } from '@/features/flows/flow-form';
 import type { FlowFragmentFragment, FlowsQuery } from '@/graphql/types';
 
+import { toRunOptionVariables } from '@/features/flows/flow-run-options-variables';
 import {
     CreateAssistantDocument,
     CreateFlowDocument,
@@ -73,12 +74,16 @@ export function FlowsProvider({ children }: FlowsProviderProps) {
                 return null;
             }
 
+            const { hitl, sandbox } = toRunOptionVariables(values);
+
             try {
                 const { data } = await createFlowMutation({
                     variables: {
+                        hitl,
                         input,
                         modelProvider,
                         resourceIds: resourceIds?.length ? resourceIds : undefined,
+                        sandbox,
                     },
                 });
 
