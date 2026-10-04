@@ -4,6 +4,7 @@ go 1.26.5
 
 require (
 	github.com/99designs/gqlgen v0.17.57
+	github.com/NVIDIA/OpenShell/sdk/go v0.0.0-20261003212233-71c3cd957abe
 	github.com/aws/aws-sdk-go-v2 v1.41.5
 	github.com/aws/aws-sdk-go-v2/config v1.32.10
 	github.com/aws/aws-sdk-go-v2/credentials v1.19.10

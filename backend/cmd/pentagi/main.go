@@ -27,6 +27,7 @@ import (
 	"pentagi/pkg/observability/profiling"
 	"pentagi/pkg/providers"
 	"pentagi/pkg/sandbox"
+	"pentagi/pkg/sandbox/openshell"
 	router "pentagi/pkg/server"
 	"pentagi/pkg/server/update"
 	"pentagi/pkg/version"
@@ -225,9 +226,16 @@ func main() {
 		logrus.WithError(err).Fatal("Docker runtime client initialization failed")
 	}
 
-	sandboxes, err := sandbox.NewRegistry(queries, sandbox.KindDocker, map[sandbox.Kind]docker.DockerClient{
-		sandbox.KindDocker: client,
-	})
+	backends := map[sandbox.Kind]docker.DockerClient{sandbox.KindDocker: client}
+	if cfg.OpenShellEnabled {
+		oshBackend, err := openshell.New(ctx, queries, cfg)
+		if err != nil {
+			logrus.WithError(err).Fatal("OpenShell sandbox backend initialization failed")
+		}
+		backends[sandbox.KindOpenShell] = oshBackend
+	}
+
+	sandboxes, err := sandbox.NewRegistry(queries, sandbox.Kind(cfg.ExecutorBackend), backends)
 	if err != nil {
 		logrus.WithError(err).Fatal("Sandbox runtimes initialization failed")
 	}

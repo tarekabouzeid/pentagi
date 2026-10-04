@@ -319,6 +319,22 @@ type Config struct {
 	// === Agent Planning Phase Configuration ===
 	AgentPlanningStepEnabled bool `env:"AGENT_PLANNING_STEP_ENABLED" envDefault:"false"`
 
+	// === Sandbox Executor Backend ===
+	// ExecutorBackend selects the runtime new flows run their tools in: "docker"
+	// (the default) or "openshell". A flow records its backend at creation, so
+	// changing this only affects flows created afterwards.
+	ExecutorBackend string `env:"EXECUTOR_BACKEND" envDefault:"docker"`
+
+	// === NVIDIA OpenShell Sandbox (gateway, gRPC) ===
+	OpenShellEnabled        bool   `env:"OPENSHELL_ENABLED" envDefault:"false"`
+	OpenShellGatewayAddress string `env:"OPENSHELL_GATEWAY_ADDRESS" envDefault:"localhost:8080"`
+	OpenShellWorkspace      string `env:"OPENSHELL_WORKSPACE" envDefault:"default"`
+	OpenShellToken          string `env:"OPENSHELL_TOKEN"`
+	OpenShellTLSCACert      string `env:"OPENSHELL_TLS_CA_CERT"`
+	OpenShellTLSInsecure    bool   `env:"OPENSHELL_TLS_INSECURE" envDefault:"false"`
+	OpenShellDefaultImage   string `env:"OPENSHELL_DEFAULT_IMAGE" envDefault:"vxcontrol/kali-linux"`
+	OpenShellDefaultPreset  string `env:"OPENSHELL_DEFAULT_PRESET" envDefault:"web_pentest"`
+
 	// === Database Configuration ===
 	DatabaseURL string `env:"DATABASE_URL" envDefault:"postgres://pentagiuser:pentagipass@pgvector:5432/pentagidb?sslmode=disable"`
 
@@ -530,6 +546,7 @@ func (c *Config) GetSecretPatterns() []patterns.Pattern {
 		{c.ProxyURL, "Proxy URL"},
 		{c.LangfusePublicKey, "Langfuse Public Key"},
 		{c.LangfuseSecretKey, "Langfuse Secret Key"},
+		{c.OpenShellToken, "OpenShell Token"},
 	}
 
 	for _, s := range secrets {

@@ -524,6 +524,15 @@ func (fte *flowToolsExecutor) Prepare(ctx context.Context) error {
 	// container agents get.
 	workerConfig, workerHostConfig := docker.WorkerSpec(fte.cfg, fte.image)
 
+	// Carry the flow's sandbox profile to the backend. The Docker backend
+	// ignores it; the OpenShell backend reads it as the policy preset.
+	if fte.functions != nil && fte.functions.Sandbox != nil && fte.functions.Sandbox.Profile != "" {
+		if workerConfig.Labels == nil {
+			workerConfig.Labels = map[string]string{}
+		}
+		workerConfig.Labels["openshell.preset"] = fte.functions.Sandbox.Profile
+	}
+
 	containerName := PrimaryTerminalName(fte.cfg.TenantPrefix(), fte.flowID)
 	cnt, err := fte.docker.RunContainer(
 		ctx,

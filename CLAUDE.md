@@ -280,6 +280,17 @@ Engines are primitives under `backend/pkg/tools/searchers/`, orchestrated by the
 
 No frontend change is needed: it treats `SearchLog.engine` as an opaque string.
 
+## Adding a New Executor Backend
+
+A flow runs its tools in a sandbox runtime chosen at creation. The runtimes live in `backend/pkg/sandbox/`: `sandbox.Registry` holds the enabled backends and the runtime each flow is bound to, a backend is anything that satisfies `docker.DockerClient` (the exec/copy/lifecycle surface the terminal, file and flow-file code already use), and the binding is persisted under `sandbox` in the flow's `Functions` so the Files tab, flow finish and a restart all resolve the same runtime. Docker (`pkg/docker`) is the default; OpenShell (`pkg/sandbox/openshell`, over the NVIDIA OpenShell gRPC SDK) is the second.
+
+1. Add `Kind<Name>` to `pkg/sandbox/sandbox.go` and its `Valid()` switch.
+2. Implement `docker.DockerClient` in `pkg/sandbox/<name>/`. A non-Docker exec maps Docker's create/attach/inspect split onto the backend's own exec — attach returns a `client.HijackedResponse` whose reader is raw for a TTY exec and stdcopy-framed otherwise, the way a real daemon streams — and `CopyTo`/`CopyFromContainer` bridge tar streams to the backend's file transfer.
+3. Config fields in `pkg/config/config.go` (`<NAME>_*`), mirrored in `.env.example`, `docker-compose.yml` (the `pentagi` service env — `config_test.go` fails otherwise), the `clearConfigEnv` list and the default/override assertions in `config_test.go`, and `GetSecretPatterns()` for every credential.
+4. Register it in `cmd/pentagi/main.go`: construct it when enabled and add it to the `sandbox.NewRegistry` backend map; the registry's default is `EXECUTOR_BACKEND`.
+5. Confirm the SDK's licence is on the approved list in `CONTRIBUTING.md`.
+6. A per-flow profile (e.g. an OpenShell policy preset) rides on `container.Config.Labels` from `flowToolsExecutor.Prepare`; the Docker backend ignores unknown labels.
+
 ## Utility Binaries
 
 - `cmd/ctester/` — provider conformance tester: runs the case suite against one provider (`-type`), filtered by agent role and group, and writes a report. `-check-routing` checks catalogue routing only.

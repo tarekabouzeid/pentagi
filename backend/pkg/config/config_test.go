@@ -167,6 +167,9 @@ func clearConfigEnv(t *testing.T) {
 		"EXECUTION_MONITOR_ENABLED", "EXECUTION_MONITOR_SAME_TOOL_LIMIT", "EXECUTION_MONITOR_TOTAL_TOOL_LIMIT",
 		"MAX_GENERAL_AGENT_TOOL_CALLS", "MAX_LIMITED_AGENT_TOOL_CALLS",
 		"AGENT_PLANNING_STEP_ENABLED",
+		"EXECUTOR_BACKEND", "OPENSHELL_ENABLED", "OPENSHELL_GATEWAY_ADDRESS", "OPENSHELL_WORKSPACE",
+		"OPENSHELL_TOKEN", "OPENSHELL_TLS_CA_CERT", "OPENSHELL_TLS_INSECURE",
+		"OPENSHELL_DEFAULT_IMAGE", "OPENSHELL_DEFAULT_PRESET",
 	}
 	for _, v := range envVars {
 		t.Setenv(v, "")
@@ -236,6 +239,12 @@ func TestConfig_NewConfig_FillsDefaultsForAnEmptyEnvironment(t *testing.T) {
 	assert.Equal(t, 100, config.MaxGeneralAgentToolCalls)
 	assert.Equal(t, 20, config.MaxLimitedAgentToolCalls)
 	assert.Equal(t, false, config.AgentPlanningStepEnabled)
+
+	assert.Equal(t, "docker", config.ExecutorBackend)
+	assert.Equal(t, false, config.OpenShellEnabled)
+	assert.Equal(t, "localhost:8080", config.OpenShellGatewayAddress)
+	assert.Equal(t, "default", config.OpenShellWorkspace)
+	assert.Equal(t, "web_pentest", config.OpenShellDefaultPreset)
 }
 
 func TestConfig_NewConfig_ReadsTheEnvironment(t *testing.T) {
@@ -256,6 +265,9 @@ func TestConfig_NewConfig_ReadsTheEnvironment(t *testing.T) {
 			"MAX_GENERAL_AGENT_TOOL_CALLS":       "150",
 			"MAX_LIMITED_AGENT_TOOL_CALLS":       "30",
 			"AGENT_PLANNING_STEP_ENABLED":        "true",
+			"EXECUTOR_BACKEND":                   "openshell",
+			"OPENSHELL_ENABLED":                  "true",
+			"OPENSHELL_WORKSPACE":                "research",
 		} {
 			t.Setenv(name, value)
 		}
@@ -278,6 +290,9 @@ func TestConfig_NewConfig_ReadsTheEnvironment(t *testing.T) {
 		assert.Equal(t, 150, config.MaxGeneralAgentToolCalls)
 		assert.Equal(t, 30, config.MaxLimitedAgentToolCalls)
 		assert.Equal(t, true, config.AgentPlanningStepEnabled)
+		assert.Equal(t, "openshell", config.ExecutorBackend)
+		assert.Equal(t, true, config.OpenShellEnabled)
+		assert.Equal(t, "research", config.OpenShellWorkspace)
 	})
 
 	t.Run("zero timeouts are kept rather than defaulted", func(t *testing.T) {
