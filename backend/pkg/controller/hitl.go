@@ -7,6 +7,8 @@ import (
 	"pentagi/pkg/database"
 	"pentagi/pkg/graph/subscriptions"
 	"pentagi/pkg/hitl"
+
+	"github.com/sirupsen/logrus"
 )
 
 type hitlPublisher struct {
@@ -34,5 +36,6 @@ func (fc *flowController) PauseFlow(ctx context.Context, flowID int64, reason st
 	if err := fw.SetStatus(ctx, database.FlowStatusWaiting); err != nil {
 		return fmt.Errorf("failed to pause flow %d: %w", flowID, err)
 	}
+	logrus.WithFields(logrus.Fields{"flow_id": flowID, "reason": reason}).Warn("flow paused by the HITL denial budget")
 	return nil
 }

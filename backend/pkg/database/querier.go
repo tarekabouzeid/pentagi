@@ -18,7 +18,7 @@ type Querier interface {
 	CountAssistants(ctx context.Context) (int64, error)
 	CountContainers(ctx context.Context) (int64, error)
 	CountFlowTemplates(ctx context.Context) (int64, error)
-	// A denial streak is broken by an approval or an edit, not by a timeout or a cancellation.
+	// A denial streak is broken by an approval, an edit or a pause, not by a timeout or a cancellation.
 	CountFlowTrailingDenials(ctx context.Context, flowID int64) (int64, error)
 	CountFlows(ctx context.Context) (int64, error)
 	CountPrompts(ctx context.Context) (int64, error)
@@ -266,6 +266,7 @@ type Querier interface {
 	ListFlowKnowledgeDocuments(ctx context.Context, flowID sql.NullString) ([]ListFlowKnowledgeDocumentsRow, error)
 	// List all non-memory knowledge documents owned by a specific user (user-scoped view).
 	ListUserKnowledgeDocuments(ctx context.Context, userID sql.NullString) ([]ListUserKnowledgeDocumentsRow, error)
+	MarkToolApprovalPausedFlow(ctx context.Context, id int64) error
 	SaveAssistantLog(ctx context.Context, arg SaveAssistantLogParams) error
 	SaveAssistantLogContent(ctx context.Context, arg SaveAssistantLogContentParams) error
 	// Vector similarity search over all knowledge documents (admin view, no user filter).

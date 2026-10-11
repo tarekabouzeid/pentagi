@@ -197,3 +197,35 @@ func TestToolApprovals_Constraints_RefuseValuesOutsideTheirSets(t *testing.T) {
 		t.Fatal("an unknown decision was stored, want the check constraint to refuse it")
 	}
 }
+
+func TestToolApprovals_CountFlowTrailingDenials_RestartsAfterAPause(t *testing.T) {
+	db := openSchema(t)
+	q := database.New(db)
+	flowID := seedFlow(t, db, seedUser(t, db), time.Now().UTC())
+
+	var last database.ToolApproval
+	for i := 0; i < 3; i++ {
+		last = requestApproval(t, q, flowID, "call-"+string(rune('a'+i)))
+		decide(t, q, last.ID, database.ToolApprovalDecisionDenied)
+	}
+	if err := q.MarkToolApprovalPausedFlow(context.Background(), last.ID); err != nil {
+		t.Fatalf("mark pause: %v", err)
+	}
+
+	count := func() int64 {
+		t.Helper()
+		n, err := q.CountFlowTrailingDenials(context.Background(), flowID)
+		if err != nil {
+			t.Fatalf("count denials: %v", err)
+		}
+		return n
+	}
+	if got := count(); got != 0 {
+		t.Fatalf("the streak after a pause is %d, want 0", got)
+	}
+
+	decide(t, q, requestApproval(t, q, flowID, "after-pause").ID, database.ToolApprovalDecisionDenied)
+	if got := count(); got != 1 {
+		t.Fatalf("the streak after one more denial is %d, want 1", got)
+	}
+}

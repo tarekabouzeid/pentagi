@@ -15,7 +15,7 @@ func TestHITL_requiresApproval_FollowsTheMode(t *testing.T) {
 		want bool
 	}{
 		{"off never asks", Config{Mode: ModeOff}, "terminal", true, RiskHigh, false},
-		{"off still asks for a blocked call", Config{Mode: ModeOff}, "terminal", true, RiskBlocked, true},
+		{"off never asks, even for a blocked call", Config{Mode: ModeOff}, "terminal", true, RiskBlocked, false},
 		{"all_tools asks for a low sandbox call", Config{Mode: ModeAllTools}, "file", true, RiskLow, true},
 		{"all_tools skips an orchestration tool", Config{Mode: ModeAllTools}, "done", false, RiskLow, false},
 		{"all_tools asks for an orchestration tool the list names", Config{Mode: ModeAllTools, Tools: []string{"done"}}, "done", false, RiskLow, true},

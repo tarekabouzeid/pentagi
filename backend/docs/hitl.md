@@ -29,17 +29,17 @@ The policy is stored under `hitl` in the flow's functions, so it is fixed when t
 | `allow_edit` | boolean | `false` | Whether an operator may replace the agent's arguments; an edit on a flow that does not allow it is refused and the request stays pending |
 | `max_denials` | integer | `0` | Consecutive denials after which the flow is paused; `0` disables the pause |
 
-A call classified `blocked` is always gated, even in `off` mode, so an operator can see and refuse it. In `risk_classified` mode a call is gated only if the policy covers it; an unrecognised mode gates the call rather than letting it through.
+A call classified `blocked` is always gated when the policy is enabled, whatever its mode or `tools` list, and a timeout never approves it. A flow whose policy is `off` runs unattended and gates nothing, including `blocked` calls; use a policy when destructive commands must be reviewed. In `risk_classified` mode a call is gated only if the policy covers it; an unrecognised mode gates the call rather than letting it through.
 
 The web UI offers three choices on a new automation flow: no approval, approve risky tools (`risk_classified`, `min_risk` medium, 300 second timeout that denies, edits allowed, pause after 3 denials) and approve every tool (`all_tools`, same timeout and budget).
 
 ## Risk classification
 
-The classifier reads the arguments of sandbox tools (`terminal`, `file`); every other tool is an orchestration step and is `low`. The rules run in this order and the first match wins. The reason is stored on the approval and shown to the operator.
+The classifier reads the arguments of sandbox tools (`terminal`, `file`); every other tool is an orchestration step and is `low`. Command names match as whole words (`john` does not match `johnson.txt`), and a command line is split on `;`, `&`, `|` and newlines so each part is judged. A line counts as read-only only if every part is a read-only command with no redirection into a file, command substitution, `find -exec`/`-delete` or `sort -o`. The rules run in this order and the first match wins. The reason is stored on the approval and shown to the operator.
 
 | Risk | Matches |
 |---|---|
-| `blocked` | Destructive or host-takeover commands: `rm -rf /`, `mkfs`, `dd if=`, writes to `/dev/sd*`, a fork bomb, `shutdown`/`reboot`/`halt`/`poweroff`, `chown -R`, reading `/etc/shadow` |
+| `blocked` | Destructive or host-takeover commands: a recursive `rm` of `/`, `/*`, `~`, `$HOME` or a system directory (or any `rm --no-preserve-root`), `mkfs`, `dd if=`, writes to `/dev/sd*`, a fork bomb, `shutdown`/`reboot`/`halt`/`poweroff`, `chown -R`, reading `/etc/shadow` |
 | `high` | Reverse shells and piping content into an interpreter, active exploitation or cracking tools (`sqlmap`, `hydra`, `john`, `hashcat`, `metasploit`, `msfconsole`, `crackmapexec`, `responder`, `mimikatz`), a state-changing HTTP request against an authentication endpoint, file writes under `/etc`, `/root`, `/usr`, `.ssh`, shell start-up files and similar, and any call whose arguments cannot be parsed |
 | `medium` | Network scanners (`nmap`, `masscan`, `nikto`, `gobuster`, `ffuf`, `nuclei`, `wpscan`, ...), outbound network commands (`curl`, `wget`, `nc`, `ssh`, `scp`, `rsync`, ...), detached background commands, other commands with side effects, other file writes |
 | `low` | Read-only commands (`ls`, `cat`, `grep`, `find`, `id`, `ps`, ...) and file reads |
@@ -48,13 +48,13 @@ The classifier is a heuristic over the command text. It does not understand shel
 
 ## Operator actions
 
-An approval moves from `pending` to exactly one of `approved`, `edited`, `denied`, `timeout` or `cancelled`; a second decision on the same request is refused. An `edited` decision carries replacement arguments, which must be valid JSON, and is accepted only on a flow whose policy sets `allow_edit`.
+An approval moves from `pending` to exactly one of `approved`, `edited`, `denied`, `timeout` or `cancelled`; a second decision on the same request is refused. An `edited` decision carries replacement arguments, which must be valid JSON, and is accepted only on a flow whose policy sets `allow_edit` and only while an agent is still waiting for the request.
 
 What the agent sees:
 
 - Approved or edited: the tool runs and returns its normal result.
 - Denied, timed out (with `on_timeout: deny`) or cancelled: the tool does not run and the agent receives a `[BLOCKED BY OPERATOR]` result saying so, which it reads and re-plans around. The chain does not fail.
-- Denial budget spent: after `max_denials` consecutive denials (a denial streak is broken by an approval or an edit, not by a timeout) the flow is set to `waiting` and the agent receives a `[PAUSED BY OPERATOR]` result telling it to make no further tool calls and report back. The running chain is not force-cancelled; use **Stop** on the flow for that. Send new input to continue the flow.
+- Denial budget spent: after `max_denials` consecutive denials (a denial streak is broken by an approval, an edit or a pause, not by a timeout; after you resume a paused flow it gets a fresh budget) the flow is set to `waiting` and the agent receives a `[PAUSED BY OPERATOR]` result telling it to make no further tool calls and report back. The running chain is not force-cancelled; use **Stop** on the flow for that. Send new input to continue the flow.
 
 A request is held in memory by the agent that raised it, so a pending request does not survive a restart: on startup the requests the previous process left pending are marked `cancelled`, and a restored flow asks again if it still needs the call. Likewise a request is cancelled when its flow is finished or stopped, or its chain is cancelled, so the operator is never left deciding a request that no agent is waiting on.
 

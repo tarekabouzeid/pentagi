@@ -64,7 +64,12 @@ SET
 WHERE flow_id = $2 AND decision = 'pending'
 RETURNING *;
 
--- A denial streak is broken by an approval or an edit, not by a timeout or a cancellation.
+-- name: MarkToolApprovalPausedFlow :exec
+UPDATE tool_approvals
+SET paused_flow = TRUE
+WHERE id = $1;
+
+-- A denial streak is broken by an approval, an edit or a pause, not by a timeout or a cancellation.
 -- name: CountFlowTrailingDenials :one
 SELECT
   COUNT(*)::BIGINT
@@ -74,7 +79,7 @@ WHERE ta.flow_id = $1
   AND ta.id > COALESCE((
     SELECT MAX(granted.id)
     FROM tool_approvals granted
-    WHERE granted.flow_id = $1 AND granted.decision IN ('approved', 'edited')
+    WHERE granted.flow_id = $1 AND (granted.decision IN ('approved', 'edited') OR granted.paused_flow)
   ), 0);
 
 -- name: GetAllPendingToolApprovals :many

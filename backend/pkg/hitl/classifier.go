@@ -11,11 +11,18 @@ type Classification struct {
 	Reason string
 }
 
-// dangerousCommands are always blocked, even in risk_classified mode.
-var dangerousCommands = []string{
-	"rm -rf /", "rm -fr /", "mkfs", "dd if=", "> /dev/sd", "of=/dev/sd",
-	":(){ :|:& };:", "shutdown", "reboot", "halt", "poweroff", "init 0",
-	"chmod -r 777 /", "chown -r", "/etc/shadow", "/etc/gshadow",
+// blockedWords are commands rated blocked wherever they appear as a word.
+var blockedWords = []string{"shutdown", "reboot", "halt", "poweroff"}
+
+// blockedFragments are rated blocked wherever they appear in the command text.
+var blockedFragments = []string{
+	"> /dev/sd", "of=/dev/sd", ":(){ :|:& };:", "/etc/shadow", "/etc/gshadow",
+}
+
+// wipeTargets are the targets that make a recursive rm destructive.
+var wipeTargets = map[string]struct{}{
+	"/": {}, "/*": {}, "~": {}, "~/*": {}, "$home": {}, "$home/*": {}, "${home}": {},
+	"*": {}, "/etc": {}, "/usr": {}, "/var": {}, "/home": {}, "/bin": {}, "/boot": {}, "/lib": {}, "/root": {},
 }
 
 var exploitTools = []string{
@@ -29,7 +36,7 @@ var scanTools = []string{
 }
 
 var networkCommands = []string{
-	"curl", "wget", "nc ", "ncat", "netcat", "ssh ", "scp ", "sftp", "rsync", "ftp ",
+	"curl", "wget", "nc", "ncat", "netcat", "ssh", "scp", "sftp", "rsync", "ftp",
 }
 
 var credentialIndicators = []string{
@@ -94,27 +101,30 @@ func classifyTerminal(args json.RawMessage) Classification {
 
 	cmd := strings.ToLower(ta.Input)
 
-	if hit, ok := containsAny(cmd, dangerousCommands); ok {
+	if hit, ok := blockedCommand(cmd); ok {
 		return Classification{Risk: RiskBlocked, Reason: "destructive or host-takeover command (" + hit + ")"}
 	}
 	if reverseShellRe.MatchString(cmd) {
 		return Classification{Risk: RiskHigh, Reason: "reverse shell or remote code execution"}
 	}
-	if hit, ok := containsAny(cmd, exploitTools); ok {
+	if hit, ok := containsWord(cmd, exploitTools); ok {
 		return Classification{Risk: RiskHigh, Reason: "active exploitation tool (" + hit + ")"}
 	}
-	if _, ok := containsAny(cmd, networkCommands); ok {
+	if _, ok := containsWord(cmd, networkCommands); ok {
 		if writeHTTPRe.MatchString(ta.Input) {
 			if _, cred := containsAny(cmd, credentialIndicators); cred {
 				return Classification{Risk: RiskHigh, Reason: "state-changing request against an authentication surface"}
 			}
 		}
 	}
-	if hit, ok := containsAny(cmd, scanTools); ok {
+	if hit, ok := containsWord(cmd, scanTools); ok {
 		return Classification{Risk: RiskMedium, Reason: "network scanning tool (" + hit + ")"}
 	}
-	if hit, ok := containsAny(cmd, networkCommands); ok {
-		return Classification{Risk: RiskMedium, Reason: "outbound network command (" + strings.TrimSpace(hit) + ")"}
+	if hit, ok := containsWord(cmd, networkCommands); ok {
+		return Classification{Risk: RiskMedium, Reason: "outbound network command (" + hit + ")"}
+	}
+	if target, ok := sensitiveRedirect(cmd); ok {
+		return Classification{Risk: RiskHigh, Reason: "write to a sensitive path (" + target + ")"}
 	}
 	if ta.Detach {
 		return Classification{Risk: RiskMedium, Reason: "detached long-running command"}
@@ -144,6 +154,36 @@ func classifyFile(args json.RawMessage) Classification {
 	return Classification{Risk: RiskMedium, Reason: "file write"}
 }
 
+var (
+	benignRedirectRe = regexp.MustCompile(`\d*>&\d+|\d*>>?\s*/dev/null`)
+	redirectRe       = regexp.MustCompile(`>>?\s*(\S+)`)
+	segmentSplitRe   = regexp.MustCompile(`[;&|\n]`)
+)
+
+// wordRe returns a matcher for word as a whole shell word, so "john" does not match "johnson.txt".
+func wordRe(word string) *regexp.Regexp {
+	return regexp.MustCompile("(^|[\\s;&|(`\"'/=])" + regexp.QuoteMeta(word) + "($|[\\s;&|)`\"'])")
+}
+
+var wordMatchers = map[string]*regexp.Regexp{}
+
+func init() {
+	for _, list := range [][]string{blockedWords, exploitTools, scanTools, networkCommands} {
+		for _, w := range list {
+			wordMatchers[w] = wordRe(w)
+		}
+	}
+}
+
+func containsWord(s string, words []string) (string, bool) {
+	for _, w := range words {
+		if wordMatchers[w].MatchString(s) {
+			return w, true
+		}
+	}
+	return "", false
+}
+
 func containsAny(s string, needles []string) (string, bool) {
 	for _, n := range needles {
 		if strings.Contains(s, n) {
@@ -153,15 +193,130 @@ func containsAny(s string, needles []string) (string, bool) {
 	return "", false
 }
 
+// segments splits a command line on its separators into simple commands.
+func segments(cmd string) [][]string {
+	var out [][]string
+	for _, seg := range segmentSplitRe.Split(cmd, -1) {
+		if fields := strings.Fields(seg); len(fields) > 0 {
+			out = append(out, fields)
+		}
+	}
+	return out
+}
+
+func commandName(field string) string {
+	if idx := strings.LastIndex(field, "/"); idx >= 0 {
+		return field[idx+1:]
+	}
+	return field
+}
+
+func normalizeTarget(t string) string {
+	if trimmed := strings.TrimRight(t, "/"); trimmed != "" {
+		return trimmed
+	}
+	return t
+}
+
+func recursiveFlag(fields []string) bool {
+	for _, f := range fields[1:] {
+		if f == "--recursive" || (strings.HasPrefix(f, "-") && !strings.HasPrefix(f, "--") && strings.ContainsAny(f, "r")) {
+			return true
+		}
+	}
+	return false
+}
+
+// blockedCommand reports destructive and host-takeover commands.
+func blockedCommand(cmd string) (string, bool) {
+	if hit, ok := containsAny(cmd, blockedFragments); ok {
+		return hit, true
+	}
+	if hit, ok := containsWord(cmd, blockedWords); ok {
+		return hit, true
+	}
+	for _, fields := range segments(cmd) {
+		name := commandName(fields[0])
+		switch {
+		case strings.HasPrefix(name, "mkfs"):
+			return "mkfs", true
+		case name == "dd" && strings.Contains(strings.Join(fields[1:], " "), "if="):
+			return "dd if=", true
+		case (name == "init" || name == "telinit") && len(fields) > 1 && fields[1] == "0":
+			return "init 0", true
+		case name == "chown" && recursiveFlag(fields):
+			return "chown -R", true
+		case name == "rm":
+			for _, f := range fields[1:] {
+				if f == "--no-preserve-root" {
+					return "rm --no-preserve-root", true
+				}
+				if _, wipe := wipeTargets[normalizeTarget(f)]; wipe && recursiveFlag(fields) {
+					return "rm -r " + f, true
+				}
+			}
+		case name == "chmod" && recursiveFlag(fields):
+			for _, f := range fields[1:] {
+				if f == "/" {
+					return "chmod -R /", true
+				}
+			}
+		}
+	}
+	return "", false
+}
+
+// sensitiveRedirect reports an output redirection into a sensitive path.
+func sensitiveRedirect(cmd string) (string, bool) {
+	cmd = benignRedirectRe.ReplaceAllString(cmd, "")
+	for _, m := range redirectRe.FindAllStringSubmatch(cmd, -1) {
+		if hit, ok := containsAny(m[1], sensitivePathParts); ok {
+			return hit, true
+		}
+	}
+	return "", false
+}
+
+// isReadOnly is true only when every simple command of the line is on the
+// read-only list and nothing in it can write, substitute or execute.
 func isReadOnly(cmd string) bool {
-	fields := strings.Fields(cmd)
-	if len(fields) == 0 {
+	cmd = benignRedirectRe.ReplaceAllString(cmd, "")
+	if strings.ContainsAny(cmd, ">`<") || strings.Contains(cmd, "$(") {
+		return false
+	}
+	segs := segments(cmd)
+	if len(segs) == 0 {
 		return true
 	}
-	first := fields[0]
-	if idx := strings.LastIndex(first, "/"); idx >= 0 {
-		first = first[idx+1:]
+	for _, fields := range segs {
+		name := commandName(fields[0])
+		if _, ok := readOnlyCommands[name]; !ok {
+			return false
+		}
+		if !readOnlyArgs(name, fields[1:]) {
+			return false
+		}
 	}
-	_, ok := readOnlyCommands[first]
-	return ok
+	return true
+}
+
+func readOnlyArgs(name string, args []string) bool {
+	switch name {
+	case "env", "printenv":
+		return name == "printenv" || len(args) == 0
+	case "find":
+		for _, a := range args {
+			switch a {
+			case "-exec", "-execdir", "-ok", "-okdir", "-delete", "-fprint", "-fprintf", "-fls":
+				return false
+			}
+		}
+	case "sort":
+		for _, a := range args {
+			if a == "-o" || strings.HasPrefix(a, "--output") {
+				return false
+			}
+		}
+	}
+	return true
 }

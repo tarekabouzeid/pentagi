@@ -23,6 +23,7 @@ type Store interface {
 	CancelFlowPendingToolApprovals(ctx context.Context, arg database.CancelFlowPendingToolApprovalsParams) ([]database.ToolApproval, error)
 	CancelPendingToolApprovals(ctx context.Context, reason string) ([]database.ToolApproval, error)
 	CountFlowTrailingDenials(ctx context.Context, flowID int64) (int64, error)
+	MarkToolApprovalPausedFlow(ctx context.Context, id int64) error
 }
 
 type Publisher interface {
@@ -61,7 +62,11 @@ func NewDispatcher(store Store, pub Publisher) *Dispatcher {
 }
 
 // SetPauser must be called once at startup, before any flow runs.
-func (d *Dispatcher) SetPauser(p FlowPauser) { d.pauser = p }
+func (d *Dispatcher) SetPauser(p FlowPauser) {
+	d.mx.Lock()
+	d.pauser = p
+	d.mx.Unlock()
+}
 
 // GateFor returns nil when the flow's policy never asks for a decision.
 func (d *Dispatcher) GateFor(flowID int64, cfg Config) Gate {
@@ -85,7 +90,10 @@ func (d *Dispatcher) Decide(
 		d.mx.Lock()
 		w, waiting := d.waiters[approvalID]
 		d.mx.Unlock()
-		if waiting && !w.allowEdit {
+		if !waiting {
+			return database.ToolApproval{}, errors.New("no agent is waiting for this request, so it cannot be edited")
+		}
+		if !w.allowEdit {
 			return database.ToolApproval{}, errors.New("this flow's policy does not allow edited arguments")
 		}
 	}
@@ -259,7 +267,8 @@ func (d *Dispatcher) onTimeout(ctx context.Context, cfg Config, approvalID int64
 	})
 	if err != nil {
 		// The row may have been decided between the timer firing and this write.
-		if existing, getErr := d.store.GetToolApproval(context.WithoutCancel(ctx), approvalID); getErr == nil {
+		existing, getErr := d.store.GetToolApproval(context.WithoutCancel(ctx), approvalID)
+		if getErr == nil && existing.Decision != database.ToolApprovalDecisionPending {
 			return existing, nil
 		}
 		return database.ToolApproval{}, fmt.Errorf("failed to time out approval %d: %w", approvalID, err)
@@ -279,22 +288,25 @@ func (d *Dispatcher) resolve(ctx context.Context, flowID int64, cfg Config, deci
 		}
 		return &Resolution{Decision: DecisionEdited, Args: args}, nil
 	case database.ToolApprovalDecisionTimeout:
-		if cfg.Normalized().OnTimeout == OnTimeoutApprove {
+		if cfg.Normalized().OnTimeout == OnTimeoutApprove && decided.RiskClass != database.ToolRiskClassBlocked {
 			return &Resolution{Decision: DecisionApproved, Args: decided.Args}, nil
 		}
 		return nil, ErrTimeout
 	case database.ToolApprovalDecisionCancelled:
 		return nil, ErrDenied
 	default: // denied
-		if d.deniedPastBudget(ctx, flowID, cfg) {
+		if d.deniedPastBudget(ctx, flowID, cfg, decided.ID) {
 			return nil, ErrPaused
 		}
 		return nil, ErrDenied
 	}
 }
 
-func (d *Dispatcher) deniedPastBudget(ctx context.Context, flowID int64, cfg Config) bool {
-	if cfg.MaxDenials <= 0 || d.pauser == nil {
+func (d *Dispatcher) deniedPastBudget(ctx context.Context, flowID int64, cfg Config, deniedID int64) bool {
+	d.mx.Lock()
+	pauser := d.pauser
+	d.mx.Unlock()
+	if cfg.MaxDenials <= 0 || pauser == nil {
 		return false
 	}
 	streak, err := d.store.CountFlowTrailingDenials(context.WithoutCancel(ctx), flowID)
@@ -306,8 +318,11 @@ func (d *Dispatcher) deniedPastBudget(ctx context.Context, flowID int64, cfg Con
 		return false
 	}
 	reason := fmt.Sprintf("flow paused after %d consecutive denials", streak)
-	if err := d.pauser.PauseFlow(context.WithoutCancel(ctx), flowID, reason); err != nil {
+	if err := pauser.PauseFlow(context.WithoutCancel(ctx), flowID, reason); err != nil {
 		d.logger.WithError(err).WithField("flow_id", flowID).Warn("failed to pause the flow after its denial budget")
+	}
+	if err := d.store.MarkToolApprovalPausedFlow(context.WithoutCancel(ctx), deniedID); err != nil {
+		d.logger.WithError(err).WithField("flow_id", flowID).Warn("failed to restart the denial streak after pausing the flow")
 	}
 	return true
 }

@@ -100,7 +100,21 @@ func (ap *assistantProvider) SetMsgLogProvider(msgLog tools.MsgLogProvider) {
 }
 
 func (ap *assistantProvider) SetHITLGate(gate hitl.Gate) {
+	if gate != nil {
+		gate = assistantGate{Gate: gate, assistantID: ap.id}
+	}
 	ap.fp.SetHITLGate(gate)
+}
+
+// assistantGate stamps the assistant onto every request so an approval can be traced to it.
+type assistantGate struct {
+	hitl.Gate
+	assistantID int64
+}
+
+func (g assistantGate) Evaluate(ctx context.Context, req *hitl.Request) (*hitl.Resolution, error) {
+	req.AssistantID = &g.assistantID
+	return g.Gate.Evaluate(ctx, req)
 }
 
 func (ap *assistantProvider) SetFlowWorker(flowWorker FlowWorker) {

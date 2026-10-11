@@ -20,7 +20,7 @@ SET
   reason = $1,
   decided_at = CURRENT_TIMESTAMP
 WHERE flow_id = $2 AND decision = 'pending'
-RETURNING id, flow_id, task_id, subtask_id, assistant_id, agent, tool_call_id, tool_name, args, risk_class, risk_reason, decision, edited_args, reason, decided_by, created_at, decided_at
+RETURNING id, flow_id, task_id, subtask_id, assistant_id, agent, tool_call_id, tool_name, args, risk_class, risk_reason, decision, edited_args, reason, decided_by, created_at, decided_at, paused_flow
 `
 
 type CancelFlowPendingToolApprovalsParams struct {
@@ -55,6 +55,7 @@ func (q *Queries) CancelFlowPendingToolApprovals(ctx context.Context, arg Cancel
 			&i.DecidedBy,
 			&i.CreatedAt,
 			&i.DecidedAt,
+			&i.PausedFlow,
 		); err != nil {
 			return nil, err
 		}
@@ -76,7 +77,7 @@ SET
   reason = $1,
   decided_at = CURRENT_TIMESTAMP
 WHERE decision = 'pending'
-RETURNING id, flow_id, task_id, subtask_id, assistant_id, agent, tool_call_id, tool_name, args, risk_class, risk_reason, decision, edited_args, reason, decided_by, created_at, decided_at
+RETURNING id, flow_id, task_id, subtask_id, assistant_id, agent, tool_call_id, tool_name, args, risk_class, risk_reason, decision, edited_args, reason, decided_by, created_at, decided_at, paused_flow
 `
 
 func (q *Queries) CancelPendingToolApprovals(ctx context.Context, reason string) ([]ToolApproval, error) {
@@ -106,6 +107,7 @@ func (q *Queries) CancelPendingToolApprovals(ctx context.Context, reason string)
 			&i.DecidedBy,
 			&i.CreatedAt,
 			&i.DecidedAt,
+			&i.PausedFlow,
 		); err != nil {
 			return nil, err
 		}
@@ -129,11 +131,11 @@ WHERE ta.flow_id = $1
   AND ta.id > COALESCE((
     SELECT MAX(granted.id)
     FROM tool_approvals granted
-    WHERE granted.flow_id = $1 AND granted.decision IN ('approved', 'edited')
+    WHERE granted.flow_id = $1 AND (granted.decision IN ('approved', 'edited') OR granted.paused_flow)
   ), 0)
 `
 
-// A denial streak is broken by an approval or an edit, not by a timeout or a cancellation.
+// A denial streak is broken by an approval, an edit or a pause, not by a timeout or a cancellation.
 func (q *Queries) CountFlowTrailingDenials(ctx context.Context, flowID int64) (int64, error) {
 	row := q.db.QueryRowContext(ctx, countFlowTrailingDenials, flowID)
 	var column_1 int64
@@ -156,7 +158,7 @@ INSERT INTO tool_approvals (
 ) VALUES (
   $1, $2, $3, $4, $5, $6, $7, $8, $9, $10
 )
-RETURNING id, flow_id, task_id, subtask_id, assistant_id, agent, tool_call_id, tool_name, args, risk_class, risk_reason, decision, edited_args, reason, decided_by, created_at, decided_at
+RETURNING id, flow_id, task_id, subtask_id, assistant_id, agent, tool_call_id, tool_name, args, risk_class, risk_reason, decision, edited_args, reason, decided_by, created_at, decided_at, paused_flow
 `
 
 type CreateToolApprovalParams struct {
@@ -204,6 +206,7 @@ func (q *Queries) CreateToolApproval(ctx context.Context, arg CreateToolApproval
 		&i.DecidedBy,
 		&i.CreatedAt,
 		&i.DecidedAt,
+		&i.PausedFlow,
 	)
 	return i, err
 }
@@ -217,7 +220,7 @@ SET
   decided_by = $4,
   decided_at = CURRENT_TIMESTAMP
 WHERE id = $5 AND decision = 'pending'
-RETURNING id, flow_id, task_id, subtask_id, assistant_id, agent, tool_call_id, tool_name, args, risk_class, risk_reason, decision, edited_args, reason, decided_by, created_at, decided_at
+RETURNING id, flow_id, task_id, subtask_id, assistant_id, agent, tool_call_id, tool_name, args, risk_class, risk_reason, decision, edited_args, reason, decided_by, created_at, decided_at, paused_flow
 `
 
 type DecideToolApprovalParams struct {
@@ -255,13 +258,14 @@ func (q *Queries) DecideToolApproval(ctx context.Context, arg DecideToolApproval
 		&i.DecidedBy,
 		&i.CreatedAt,
 		&i.DecidedAt,
+		&i.PausedFlow,
 	)
 	return i, err
 }
 
 const getAllPendingToolApprovals = `-- name: GetAllPendingToolApprovals :many
 SELECT
-  ta.id, ta.flow_id, ta.task_id, ta.subtask_id, ta.assistant_id, ta.agent, ta.tool_call_id, ta.tool_name, ta.args, ta.risk_class, ta.risk_reason, ta.decision, ta.edited_args, ta.reason, ta.decided_by, ta.created_at, ta.decided_at
+  ta.id, ta.flow_id, ta.task_id, ta.subtask_id, ta.assistant_id, ta.agent, ta.tool_call_id, ta.tool_name, ta.args, ta.risk_class, ta.risk_reason, ta.decision, ta.edited_args, ta.reason, ta.decided_by, ta.created_at, ta.decided_at, ta.paused_flow
 FROM tool_approvals ta
 WHERE ta.decision = 'pending'
 ORDER BY ta.id ASC
@@ -294,6 +298,7 @@ func (q *Queries) GetAllPendingToolApprovals(ctx context.Context) ([]ToolApprova
 			&i.DecidedBy,
 			&i.CreatedAt,
 			&i.DecidedAt,
+			&i.PausedFlow,
 		); err != nil {
 			return nil, err
 		}
@@ -310,7 +315,7 @@ func (q *Queries) GetAllPendingToolApprovals(ctx context.Context) ([]ToolApprova
 
 const getFlowPendingToolApprovals = `-- name: GetFlowPendingToolApprovals :many
 SELECT
-  ta.id, ta.flow_id, ta.task_id, ta.subtask_id, ta.assistant_id, ta.agent, ta.tool_call_id, ta.tool_name, ta.args, ta.risk_class, ta.risk_reason, ta.decision, ta.edited_args, ta.reason, ta.decided_by, ta.created_at, ta.decided_at
+  ta.id, ta.flow_id, ta.task_id, ta.subtask_id, ta.assistant_id, ta.agent, ta.tool_call_id, ta.tool_name, ta.args, ta.risk_class, ta.risk_reason, ta.decision, ta.edited_args, ta.reason, ta.decided_by, ta.created_at, ta.decided_at, ta.paused_flow
 FROM tool_approvals ta
 WHERE ta.flow_id = $1 AND ta.decision = 'pending'
 ORDER BY ta.id ASC
@@ -343,6 +348,7 @@ func (q *Queries) GetFlowPendingToolApprovals(ctx context.Context, flowID int64)
 			&i.DecidedBy,
 			&i.CreatedAt,
 			&i.DecidedAt,
+			&i.PausedFlow,
 		); err != nil {
 			return nil, err
 		}
@@ -359,7 +365,7 @@ func (q *Queries) GetFlowPendingToolApprovals(ctx context.Context, flowID int64)
 
 const getFlowToolApprovals = `-- name: GetFlowToolApprovals :many
 SELECT
-  ta.id, ta.flow_id, ta.task_id, ta.subtask_id, ta.assistant_id, ta.agent, ta.tool_call_id, ta.tool_name, ta.args, ta.risk_class, ta.risk_reason, ta.decision, ta.edited_args, ta.reason, ta.decided_by, ta.created_at, ta.decided_at
+  ta.id, ta.flow_id, ta.task_id, ta.subtask_id, ta.assistant_id, ta.agent, ta.tool_call_id, ta.tool_name, ta.args, ta.risk_class, ta.risk_reason, ta.decision, ta.edited_args, ta.reason, ta.decided_by, ta.created_at, ta.decided_at, ta.paused_flow
 FROM tool_approvals ta
 WHERE ta.flow_id = $1
 ORDER BY ta.created_at DESC, ta.id DESC
@@ -392,6 +398,7 @@ func (q *Queries) GetFlowToolApprovals(ctx context.Context, flowID int64) ([]Too
 			&i.DecidedBy,
 			&i.CreatedAt,
 			&i.DecidedAt,
+			&i.PausedFlow,
 		); err != nil {
 			return nil, err
 		}
@@ -408,7 +415,7 @@ func (q *Queries) GetFlowToolApprovals(ctx context.Context, flowID int64) ([]Too
 
 const getToolApproval = `-- name: GetToolApproval :one
 SELECT
-  ta.id, ta.flow_id, ta.task_id, ta.subtask_id, ta.assistant_id, ta.agent, ta.tool_call_id, ta.tool_name, ta.args, ta.risk_class, ta.risk_reason, ta.decision, ta.edited_args, ta.reason, ta.decided_by, ta.created_at, ta.decided_at
+  ta.id, ta.flow_id, ta.task_id, ta.subtask_id, ta.assistant_id, ta.agent, ta.tool_call_id, ta.tool_name, ta.args, ta.risk_class, ta.risk_reason, ta.decision, ta.edited_args, ta.reason, ta.decided_by, ta.created_at, ta.decided_at, ta.paused_flow
 FROM tool_approvals ta
 WHERE ta.id = $1
 `
@@ -434,6 +441,18 @@ func (q *Queries) GetToolApproval(ctx context.Context, id int64) (ToolApproval, 
 		&i.DecidedBy,
 		&i.CreatedAt,
 		&i.DecidedAt,
+		&i.PausedFlow,
 	)
 	return i, err
+}
+
+const markToolApprovalPausedFlow = `-- name: MarkToolApprovalPausedFlow :exec
+UPDATE tool_approvals
+SET paused_flow = TRUE
+WHERE id = $1
+`
+
+func (q *Queries) MarkToolApprovalPausedFlow(ctx context.Context, id int64) error {
+	_, err := q.db.ExecContext(ctx, markToolApprovalPausedFlow, id)
+	return err
 }

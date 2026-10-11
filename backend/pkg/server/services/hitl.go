@@ -34,14 +34,12 @@ type decideToolApprovalRequest struct {
 
 // ownsFlow: flows.admin may act on any flow, anyone else only on their own.
 func (s *HITLService) ownsFlow(c *gin.Context, flowID int64) (bool, error) {
-	privs := c.GetStringSlice("prm")
-	if slices.Contains(privs, "flows.admin") {
-		_, err := s.db.GetFlow(c.Request.Context(), flowID)
-		return err == nil, err
-	}
 	flow, err := s.db.GetFlow(c.Request.Context(), flowID)
 	if err != nil {
 		return false, err
+	}
+	if slices.Contains(c.GetStringSlice("prm"), "flows.admin") {
+		return true, nil
 	}
 	return flow.UserID == int64(c.GetUint64("uid")), nil
 }

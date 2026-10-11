@@ -1116,6 +1116,7 @@ type ToolApproval struct {
 	DecidedBy   sql.NullInt64         `json:"decided_by"`
 	CreatedAt   time.Time             `json:"created_at"`
 	DecidedAt   sql.NullTime          `json:"decided_at"`
+	PausedFlow  bool                  `json:"paused_flow"`
 }
 
 type Toolcall struct {

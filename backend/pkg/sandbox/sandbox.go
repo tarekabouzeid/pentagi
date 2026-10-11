@@ -155,6 +155,13 @@ func (r *Registry[B]) Bind(flowID int64, sel Selection) (B, error) {
 	return backend, nil
 }
 
+// Release drops the cached binding of a finished flow; ForFlow re-reads it from the flow's stored selection if it is asked again.
+func (r *Registry[B]) Release(flowID int64) {
+	r.mx.Lock()
+	delete(r.flows, flowID)
+	r.mx.Unlock()
+}
+
 // ForFlow treats a flow that is unbound in this process and gone from the database as Docker, like every flow without a stored selection.
 func (r *Registry[B]) ForFlow(ctx context.Context, flowID int64) (B, error) {
 	r.mx.RLock()

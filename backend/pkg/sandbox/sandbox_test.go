@@ -125,6 +125,22 @@ func TestSandbox_ForFlow_ReadsTheStoredSelectionOnce(t *testing.T) {
 	assert.Equal(t, 1, db.reads, "a flow's runtime is read from the database once")
 }
 
+func TestSandbox_Release_ForgetsTheBindingAndRereadsItOnDemand(t *testing.T) {
+	db := &fakeFlows{flows: map[int64]database.Flow{
+		7: {ID: 7, Functions: []byte(`{"sandbox":{"backend":"openshell"}}`)},
+	}}
+	r := newBoth(t, db, KindDocker)
+
+	_, err := r.ForFlow(context.Background(), 7)
+	require.NoError(t, err)
+	r.Release(7)
+
+	got, err := r.ForFlow(context.Background(), 7)
+	require.NoError(t, err)
+	assert.Same(t, openshellRuntime, got)
+	assert.Equal(t, 2, db.reads, "a released flow is read again from its stored selection")
+}
+
 func TestSandbox_ForFlow_TakesAFlowWithoutASelectionToBeDocker(t *testing.T) {
 	db := &fakeFlows{flows: map[int64]database.Flow{
 		1: {ID: 1, Functions: []byte(`{}`)},

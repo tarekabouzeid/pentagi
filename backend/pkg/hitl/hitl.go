@@ -121,15 +121,17 @@ func (c Config) Enabled() bool { return c.Normalized().Mode != ModeOff }
 // decision. An explicit Tools list, when set, is the whole rule in
 // risk_classified mode: only those tools are gated. all_tools gates the tools
 // that run in the sandbox, plus any other tool the list names. A blocked call
-// is always gated, whatever the mode, so the operator can see and refuse it.
+// is always gated in an enabled mode, so the operator can see and refuse it;
+// a flow with the policy off runs unattended and gates nothing.
 func (c Config) requiresApproval(toolName string, isEnvironment bool, risk RiskClass) bool {
 	c = c.Normalized()
+	if c.Mode == ModeOff {
+		return false
+	}
 	if risk == RiskBlocked {
 		return true
 	}
 	switch c.Mode {
-	case ModeOff:
-		return false
 	case ModeAllTools:
 		return isEnvironment || c.names(toolName)
 	case ModeRiskClassified:

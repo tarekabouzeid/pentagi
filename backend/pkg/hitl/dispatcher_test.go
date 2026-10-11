@@ -20,6 +20,8 @@ type memStore struct {
 	rows      map[int64]*database.ToolApproval
 	nextID    int64
 	createErr error
+	// failTimeoutWrite makes the write that records a timeout fail while the row stays pending.
+	failTimeoutWrite bool
 }
 
 func newMemStore() *memStore { return &memStore{rows: map[int64]*database.ToolApproval{}} }
@@ -49,6 +51,9 @@ func (m *memStore) DecideToolApproval(ctx context.Context, arg database.DecideTo
 	row, ok := m.rows[arg.ID]
 	if !ok || row.Decision != database.ToolApprovalDecisionPending {
 		return database.ToolApproval{}, errNoPending
+	}
+	if m.failTimeoutWrite && arg.Decision == database.ToolApprovalDecisionTimeout {
+		return database.ToolApproval{}, errors.New("store unavailable")
 	}
 	row.Decision = arg.Decision
 	row.EditedArgs = arg.EditedArgs
@@ -113,7 +118,7 @@ func (m *memStore) CountFlowTrailingDenials(ctx context.Context, flowID int64) (
 		if r.FlowID != flowID {
 			continue
 		}
-		if r.Decision == database.ToolApprovalDecisionApproved || r.Decision == database.ToolApprovalDecisionEdited {
+		if r.Decision == database.ToolApprovalDecisionApproved || r.Decision == database.ToolApprovalDecisionEdited || r.PausedFlow {
 			if id > lastGrant {
 				lastGrant = id
 			}
@@ -126,6 +131,13 @@ func (m *memStore) CountFlowTrailingDenials(ctx context.Context, flowID int64) (
 		}
 	}
 	return n, nil
+}
+
+func (m *memStore) MarkToolApprovalPausedFlow(ctx context.Context, id int64) error {
+	m.mx.Lock()
+	defer m.mx.Unlock()
+	m.rows[id].PausedFlow = true
+	return nil
 }
 
 func (m *memStore) filter(keep func(*database.ToolApproval) bool) []database.ToolApproval {
@@ -312,6 +324,23 @@ func TestDispatcher_Evaluate_AppliesTheTimeoutOutcome(t *testing.T) {
 			t.Fatalf("got (%v, %v), want approved", res, err)
 		}
 	})
+	t.Run("a blocked call is never approved by a timeout", func(t *testing.T) {
+		d, _, _ := newDispatcher(t)
+		gate := d.GateFor(testFlowID, Config{Mode: ModeRiskClassified, TimeoutSec: 1, OnTimeout: OnTimeoutApprove})
+		_, err := gate.Evaluate(context.Background(), req("terminal", `{"input":"rm -rf /"}`))
+		if !errors.Is(err, ErrTimeout) {
+			t.Fatalf("err = %v, want ErrTimeout", err)
+		}
+	})
+	t.Run("a failed timeout write is an error, not a denial", func(t *testing.T) {
+		d, store, _ := newDispatcher(t)
+		store.failTimeoutWrite = true
+		gate := d.GateFor(testFlowID, Config{Mode: ModeAllTools, TimeoutSec: 1, OnTimeout: OnTimeoutApprove})
+		_, err := gate.Evaluate(context.Background(), req("terminal", `{"input":"nmap t"}`))
+		if err == nil || errors.Is(err, ErrDenied) || errors.Is(err, ErrTimeout) {
+			t.Fatalf("err = %v, want the store failure", err)
+		}
+	})
 }
 
 func TestDispatcher_Evaluate_ReleasesABlockedCallWhenItsContextEnds(t *testing.T) {
@@ -368,6 +397,12 @@ func TestDispatcher_Evaluate_PausesTheFlowOnceTheDenialBudgetIsSpent(t *testing.
 	}
 	if len(pauser.paused) != 1 || pauser.paused[0] != testFlowID {
 		t.Fatalf("paused %v, want [%d]", pauser.paused, testFlowID)
+	}
+	if err := denyNext(); !errors.Is(err, ErrDenied) {
+		t.Fatalf("first denial after the pause err = %v, want ErrDenied from a fresh budget", err)
+	}
+	if err := denyNext(); !errors.Is(err, ErrPaused) {
+		t.Fatalf("second denial after the pause err = %v, want ErrPaused", err)
 	}
 }
 
@@ -481,5 +516,24 @@ func TestDispatcher_Decide_RefusesAnEditTheFlowsPolicyDoesNotAllow(t *testing.T)
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("the agent was never released")
+	}
+}
+
+func TestDispatcher_Decide_RefusesAnEditNobodyIsWaitingFor(t *testing.T) {
+	d, store, _ := newDispatcher(t)
+	row, err := store.CreateToolApproval(context.Background(), database.CreateToolApprovalParams{
+		FlowID: testFlowID, Agent: database.MsgchainTypePentester, ToolCallID: "c", ToolName: "terminal",
+		Args: json.RawMessage(`{"input":"id"}`), RiskClass: database.ToolRiskClassMedium,
+	})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+
+	_, err = d.Decide(context.Background(), row.ID, DecisionEdited, json.RawMessage(`{"input":"whoami"}`), "", 1)
+	if err == nil || !strings.Contains(err.Error(), "no agent is waiting") {
+		t.Fatalf("Decide(edited) = %v, want a refusal naming the missing waiter", err)
+	}
+	if got, _ := store.GetToolApproval(context.Background(), row.ID); got.Decision != database.ToolApprovalDecisionPending {
+		t.Fatalf("the refused edit left the request %q, want it still pending", got.Decision)
 	}
 }

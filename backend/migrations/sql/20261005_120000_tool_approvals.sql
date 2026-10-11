@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS tool_approvals (
   decided_by    BIGINT        NULL REFERENCES users(id) ON DELETE SET NULL,
   created_at    TIMESTAMPTZ   NOT NULL DEFAULT CURRENT_TIMESTAMP,
   decided_at    TIMESTAMPTZ   NULL,
+  paused_flow   BOOLEAN       NOT NULL DEFAULT FALSE,
 
   CONSTRAINT tool_approvals_risk_class_valid
     CHECK (risk_class IN ('low', 'medium', 'high', 'blocked')),

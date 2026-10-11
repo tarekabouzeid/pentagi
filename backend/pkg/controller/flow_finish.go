@@ -125,6 +125,7 @@ func (fc *flowController) releaseFlowContainers(
 	}
 
 	box, err := fc.sandboxes.ForFlow(ctx, flowID)
+	defer fc.sandboxes.Release(flowID)
 	if err != nil {
 		logrus.WithContext(ctx).WithError(err).
 			Warnf("failed to resolve the sandbox of flow %d, finishing it without releasing its containers", flowID)
