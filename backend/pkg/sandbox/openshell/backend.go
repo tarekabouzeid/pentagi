@@ -4,10 +4,10 @@
 package openshell
 
 import (
-	"archive/tar"
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/binary"
 	"fmt"
 	"io"
@@ -24,6 +24,7 @@ import (
 	"pentagi/pkg/docker"
 
 	v1 "github.com/NVIDIA/OpenShell/sdk/go/openshell/v1"
+	cerrdefs "github.com/containerd/errdefs"
 	"github.com/moby/moby/api/types/container"
 	"github.com/moby/moby/client"
 	"github.com/sirupsen/logrus"
@@ -40,10 +41,8 @@ type execAPI interface {
 	Run(ctx context.Context, workspace, sandboxName string, command []string, opts ...v1.ExecOptions) (*v1.ExecResult, error)
 }
 
-type fileAPI interface {
-	Upload(ctx context.Context, workspace, sandboxName, localPath, remotePath string) error
-	Download(ctx context.Context, workspace, sandboxName, remotePath, localPath string) error
-}
+// transferChunk is the base64 size of one staged upload piece, kept well under the kernel limit on a single argument.
+const transferChunk = 64 * 1024
 
 type Backend struct {
 	db        database.Querier
@@ -51,7 +50,6 @@ type Backend struct {
 	closer    io.Closer
 	sandboxes sandboxAPI
 	exec      execAPI
-	files     fileAPI
 
 	workspace     string
 	defaultImage  string
@@ -100,17 +98,16 @@ func New(ctx context.Context, db database.Querier, cfg *config.Config) (*Backend
 		return nil, fmt.Errorf("OpenShell gateway at %s is unhealthy: %w", cfg.OpenShellGatewayAddress, err)
 	}
 
-	return newBackend(db, cfg, client.Sandboxes(), client.Exec(), client.Files(), client), nil
+	return newBackend(db, cfg, client.Sandboxes(), client.Exec(), client), nil
 }
 
-func newBackend(db database.Querier, cfg *config.Config, sandboxes sandboxAPI, exec execAPI, files fileAPI, closer io.Closer) *Backend {
+func newBackend(db database.Querier, cfg *config.Config, sandboxes sandboxAPI, exec execAPI, closer io.Closer) *Backend {
 	return &Backend{
 		db:            db,
 		logger:        logrus.WithField("component", "openshell"),
 		closer:        closer,
 		sandboxes:     sandboxes,
 		exec:          exec,
-		files:         files,
 		workspace:     cfg.OpenShellWorkspace,
 		defaultImage:  cfg.OpenShellDefaultImage,
 		defaultPreset: cfg.OpenShellDefaultPreset,
@@ -196,16 +193,9 @@ func (b *Backend) RunContainer(
 	return updated, nil
 }
 
+// StopContainer deletes the sandbox: OpenShell cannot suspend one, so the row is recorded as deleted rather than stopped to keep a later start from resuming a sandbox that is gone.
 func (b *Backend) StopContainer(ctx context.Context, containerID string, dbID int64) error {
-	if _, err := b.sandboxes.Delete(ctx, b.workspace, containerID); err != nil && !isNotFound(err) {
-		return fmt.Errorf("failed to stop OpenShell sandbox %q: %w", containerID, err)
-	}
-	if _, err := b.db.UpdateContainerStatus(ctx, database.UpdateContainerStatusParams{
-		Status: database.ContainerStatusStopped, ID: dbID,
-	}); err != nil {
-		return fmt.Errorf("failed to record the stopped sandbox: %w", err)
-	}
-	return nil
+	return b.RemoveContainer(ctx, containerID, dbID)
 }
 
 func (b *Backend) RemoveContainer(ctx context.Context, containerID string, dbID int64) error {
@@ -273,6 +263,9 @@ func (b *Backend) ContainerExecAttach(ctx context.Context, execID string, _ clie
 
 	result, err := b.exec.Run(ctx, b.workspace, state.sandbox, state.cmd, opts)
 	if err != nil {
+		b.mx.Lock()
+		delete(b.execs, execID)
+		b.mx.Unlock()
 		return client.HijackedResponse{}, fmt.Errorf("OpenShell exec failed: %w", err)
 	}
 
@@ -293,6 +286,7 @@ func (b *Backend) ContainerExecAttach(ctx context.Context, execID string, _ clie
 	return client.HijackedResponse{Conn: nopConn{}, Reader: bufio.NewReader(&buf)}, nil
 }
 
+// ContainerExecInspect forgets a finished exec: callers inspect each exec once, after reading its output.
 func (b *Backend) ContainerExecInspect(ctx context.Context, execID string) (client.ExecInspectResult, error) {
 	b.mx.Lock()
 	defer b.mx.Unlock()
@@ -300,6 +294,9 @@ func (b *Backend) ContainerExecInspect(ctx context.Context, execID string) (clie
 	state, ok := b.execs[execID]
 	if !ok {
 		return client.ExecInspectResult{}, fmt.Errorf("unknown exec id %q", execID)
+	}
+	if state.ran {
+		delete(b.execs, execID)
 	}
 	return client.ExecInspectResult{ID: execID, ContainerID: state.sandbox, Running: !state.ran, ExitCode: state.exitCode}, nil
 }
@@ -311,6 +308,9 @@ func (b *Backend) ContainerStatPath(ctx context.Context, containerID string, p s
 		return container.PathStat{}, err
 	}
 	if code != 0 {
+		if strings.Contains(out, "No such file") {
+			return container.PathStat{}, fmt.Errorf("stat %q in sandbox %q: %w", p, containerID, cerrdefs.ErrNotFound)
+		}
 		return container.PathStat{}, fmt.Errorf("stat %q failed in sandbox %q: %s", p, containerID, strings.TrimSpace(out))
 	}
 	return parseStat(strings.TrimSpace(out), p)
@@ -353,77 +353,67 @@ func (b *Backend) ListContainerDir(ctx context.Context, containerID string, dirP
 	return listing, nil
 }
 
+// File transfer runs tar over exec, base64-framed so binary content survives the gateway: the SDK's file client has no transport in this release, and tar also moves directories the way Docker's copy API does.
 func (b *Backend) CopyToContainer(ctx context.Context, containerID, dstPath string, content io.Reader, _ client.CopyToContainerOptions) error {
-	tr := tar.NewReader(content)
-	for {
-		header, err := tr.Next()
-		if err == io.EOF {
-			return nil
-		}
-		if err != nil {
-			return fmt.Errorf("failed to read the upload tar: %w", err)
-		}
-		if header.FileInfo().IsDir() {
-			continue
-		}
+	data, err := io.ReadAll(content)
+	if err != nil {
+		return fmt.Errorf("failed to read the upload tar: %w", err)
+	}
 
-		tmp, err := os.CreateTemp("", "osh-upload-*")
-		if err != nil {
-			return fmt.Errorf("failed to stage an upload: %w", err)
-		}
-		_, copyErr := io.Copy(tmp, tr)
-		closeErr := tmp.Close()
-		if copyErr != nil {
-			os.Remove(tmp.Name())
-			return fmt.Errorf("failed to stage an upload: %w", copyErr)
-		}
-		if closeErr != nil {
-			os.Remove(tmp.Name())
-			return fmt.Errorf("failed to stage an upload: %w", closeErr)
-		}
+	b.mx.Lock()
+	b.seq++
+	stage := "/tmp/.pentagi-upload-" + strconv.FormatInt(b.seq, 10)
+	b.mx.Unlock()
 
-		remote := path.Join(dstPath, header.Name)
-		uploadErr := b.files.Upload(ctx, b.workspace, containerID, tmp.Name(), remote)
-		os.Remove(tmp.Name())
-		if uploadErr != nil {
-			return fmt.Errorf("failed to upload %q to sandbox %q: %w", remote, containerID, uploadErr)
+	encoded := base64.StdEncoding.EncodeToString(data)
+	defer func() {
+		_, _, _ = b.runGather(context.WithoutCancel(ctx), containerID, []string{"rm", "-f", stage, stage + ".tar"})
+	}()
+
+	if out, code, err := b.runGather(ctx, containerID, []string{"mkdir", "-p", dstPath}); err != nil || code != 0 {
+		return transferError("create "+dstPath, containerID, out, code, err)
+	}
+	for start := 0; start < len(encoded); start += transferChunk {
+		chunk := encoded[start:min(start+transferChunk, len(encoded))]
+		if out, code, err := b.runGather(ctx, containerID, []string{"sh", "-c", `printf %s "$1" >> "$2"`, "sh", chunk, stage}); err != nil || code != 0 {
+			return transferError("stage the upload", containerID, out, code, err)
 		}
 	}
+	script := `touch "$1" && base64 -d "$1" > "$1.tar" && tar -xf "$1.tar" -C "$2"`
+	if out, code, err := b.runGather(ctx, containerID, []string{"sh", "-c", script, "sh", stage, dstPath}); err != nil || code != 0 {
+		return transferError("extract the upload into "+dstPath, containerID, out, code, err)
+	}
+	return nil
 }
 
 func (b *Backend) CopyFromContainer(ctx context.Context, containerID, srcPath string) (io.ReadCloser, container.PathStat, error) {
-	tmp, err := os.CreateTemp("", "osh-download-*")
+	stat, err := b.ContainerStatPath(ctx, containerID, srcPath)
 	if err != nil {
-		return nil, container.PathStat{}, fmt.Errorf("failed to stage a download: %w", err)
-	}
-	tmpName := tmp.Name()
-	tmp.Close()
-	defer os.Remove(tmpName)
-
-	if err := b.files.Download(ctx, b.workspace, containerID, srcPath, tmpName); err != nil {
-		return nil, container.PathStat{}, fmt.Errorf("failed to download %q from sandbox %q: %w", srcPath, containerID, err)
+		return nil, container.PathStat{}, err
 	}
 
-	data, err := os.ReadFile(tmpName)
+	script := `tmp=$(mktemp) && tar -cf "$tmp" -C "$1" "$2" && base64 "$tmp" | tr -d '\n'; s=$?; rm -f "$tmp"; exit $s`
+	result, err := b.exec.Run(ctx, b.workspace, containerID,
+		[]string{"sh", "-c", script, "sh", path.Dir(srcPath), path.Base(srcPath)}, v1.ExecOptions{NoLoginShell: true})
 	if err != nil {
-		return nil, container.PathStat{}, fmt.Errorf("failed to read the downloaded file: %w", err)
+		return nil, container.PathStat{}, fmt.Errorf("OpenShell exec failed in sandbox %q: %w", containerID, err)
+	}
+	if result.ExitCode != 0 {
+		return nil, container.PathStat{}, transferError("archive "+srcPath, containerID, string(result.Stderr), result.ExitCode, nil)
 	}
 
-	var buf bytes.Buffer
-	tw := tar.NewWriter(&buf)
-	name := path.Base(srcPath)
-	if err := tw.WriteHeader(&tar.Header{Name: name, Mode: 0o644, Size: int64(len(data))}); err != nil {
-		return nil, container.PathStat{}, fmt.Errorf("failed to tar the downloaded file: %w", err)
+	data, err := base64.StdEncoding.DecodeString(strings.TrimSpace(string(result.Stdout)))
+	if err != nil {
+		return nil, container.PathStat{}, fmt.Errorf("failed to decode the archive of %q from sandbox %q: %w", srcPath, containerID, err)
 	}
-	if _, err := tw.Write(data); err != nil {
-		return nil, container.PathStat{}, fmt.Errorf("failed to tar the downloaded file: %w", err)
-	}
-	if err := tw.Close(); err != nil {
-		return nil, container.PathStat{}, fmt.Errorf("failed to close the download tar: %w", err)
-	}
+	return io.NopCloser(bytes.NewReader(data)), stat, nil
+}
 
-	stat := container.PathStat{Name: name, Size: int64(len(data)), Mode: 0o644, Mtime: time.Now()}
-	return io.NopCloser(&buf), stat, nil
+func transferError(what, sandbox, output string, code int, err error) error {
+	if err != nil {
+		return err
+	}
+	return fmt.Errorf("failed to %s in sandbox %q (exit %d): %s", what, sandbox, code, strings.TrimSpace(output))
 }
 
 // Cleanup is a no-op: sandboxes are per-flow and deleted when the flow finishes.

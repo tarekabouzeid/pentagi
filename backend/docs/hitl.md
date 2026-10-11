@@ -136,7 +136,7 @@ A configured gateway that cannot be reached, or an unknown default preset, stops
 | Preset | Posture |
 |---|---|
 | `web_pentest` | Outbound network, read-only root, writable `/tmp`, `/home`, `/var/tmp` and `/work` |
-| `recon_only` | Read-only network access, writable `/tmp` and `/work` |
+| `recon_only` | Read-only network access (the SDK's read-only preset), writable `/tmp` and `/work` |
 | `binary_analysis` | No network, writable `/tmp` and `/work` |
 
 Differences from Docker to be aware of:
@@ -144,7 +144,8 @@ Differences from Docker to be aware of:
 - Each command is one gateway call. A detached command lives as long as that call, bounded by the terminal timeout; start long-lived services with `nohup` or similar.
 - **Stop** ends the commands PentAGI is waiting on, but there is no sweep of leftover processes as there is in Docker.
 - Docker-specific container settings (published ports, host Docker access for workers) do not apply, and the image must be pullable by the gateway.
-- The Files tab lists directories with `find` and `stat` run inside the sandbox, so the image needs them.
+- The Files tab lists directories with `find` and `stat` run inside the sandbox, and uploads and downloads move a tar archive through `sh`, `tar`, `base64`, `mktemp` and `tr` run there too (the SDK has no file transport in this release), so the image needs those tools. Large transfers go through the gateway as text, so they are slower than Docker's copy API.
+- OpenShell cannot suspend a sandbox: stopping one deletes it and its files, and its container row is recorded as deleted.
 
 The OpenShell backend is covered by unit tests against fakes of the SDK. It has not been run against a live gateway in CI.
 

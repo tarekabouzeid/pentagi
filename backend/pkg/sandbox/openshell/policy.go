@@ -10,7 +10,7 @@ type Preset struct {
 	Policy      *types.SandboxPolicy
 }
 
-// web_pentest is the default; recon_only withholds mail ports; binary_analysis has no network.
+// web_pentest is the default; recon_only allows read-only network access; binary_analysis has no network.
 var presets = map[string]Preset{
 	"web_pentest": {
 		Name:        "web_pentest",
@@ -33,7 +33,7 @@ var presets = map[string]Preset{
 	},
 	"recon_only": {
 		Name:        "recon_only",
-		Description: "Reconnaissance only: outbound network except mail ports, limited writable scratch",
+		Description: "Reconnaissance only: read-only network access, limited writable scratch",
 		Policy: &types.SandboxPolicy{
 			Filesystem: &types.FilesystemPolicy{
 				IncludeWorkdir: true,
